@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Superpixel",
+  "version": "0.1.0",
+  "description": "Competitor research: on-site marketing tags and running ads from public ad libraries for any domain.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Superpixel"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background/sw.js",
+    "type": "module"
+  },
+  "permissions": ["sidePanel", "storage", "tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/ads/library/*", "https://library.tiktok.com/*"],
+      "js": ["content/hook-main.js"],
+      "run_at": "document_start",
+      "all_frames": false,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.facebook.com/ads/library/*", "https://library.tiktok.com/*"],
+      "js": ["content/relay.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ]
+}

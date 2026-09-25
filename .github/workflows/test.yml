@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax check
+        run: |
+          for f in $(git ls-files '*.js'); do node --check "$f" || exit 1; done
+
+      - name: Unit tests
+        run: node --test tests/
+
+      - name: No dash glyphs
+        run: |
+          if grep -rnP --exclude-dir=.git '[\x{2013}\x{2014}]' --include='*.js' --include='*.md' --include='*.html' --include='*.css' --include='*.json' .; then
+            echo "Found an em dash or en dash character. Replace it with a hyphen."
+            exit 1
+          fi

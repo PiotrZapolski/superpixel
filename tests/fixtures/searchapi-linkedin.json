@@ -1,0 +1,36 @@
+{
+  "search_parameters": { "engine": "linkedin_ad_library", "advertiser": "google" },
+  "search_information": { "total_results": 13954 },
+  "ads": [
+    {
+      "position": 1,
+      "advertiser": { "name": "Google Cloud", "thumbnail": "https://media.licdn.com/dms/image/v2/C560BAQ/company-logo_100_100/google_cloud_logo" },
+      "ad_type": "image",
+      "content": {
+        "headline": "Powered by Gemini, Google Agentspace is the platform for agents.",
+        "image": "https://media.licdn.com/dms/image/v2/D4D10AQ/image-shrink_1280/phase1",
+        "cta": "Make it happen with Google AI"
+      },
+      "link": "https://www.linkedin.com/ad-library/detail/728824033?trk=ad_library_ad_preview_content_image",
+      "id": "728824033"
+    },
+    {
+      "position": 2,
+      "advertiser": { "name": "Google Cloud" },
+      "ad_type": "carousel",
+      "content": {
+        "headline": "Building resilient code.",
+        "items": [{ "image": "https://media.licdn.com/dms/image/v2/D4D10AQ/image-pad_1200/item1", "cta": "Learn" }]
+      },
+      "link": "https://www.linkedin.com/ad-library/detail/728873973"
+    },
+    {
+      "position": 3,
+      "headline": "Save the Date",
+      "image": "https://media.licdn.com/dms/image/v2/D4E1EAQ/event-background",
+      "name": "Some conference",
+      "organizer": "Event by IHK Berlin"
+    }
+  ],
+  "pagination": { "next_page_token": "NzI4ODkyODUzLTE3NTIxNjk3NjY0NzU=" }
+}

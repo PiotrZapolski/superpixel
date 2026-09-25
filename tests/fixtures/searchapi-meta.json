@@ -1,0 +1,52 @@
+{
+  "search_information": { "total_results": 10644 },
+  "ads": [
+    {
+      "ad_archive_id": "2063067314248831",
+      "is_active": true,
+      "page_id": "15087023444",
+      "snapshot": {
+        "page_id": "15087023444",
+        "page_profile_uri": "https://www.facebook.com/nike/",
+        "page_name": "Nike",
+        "caption": "http://nike.com/",
+        "cards": [
+          {
+            "body": "Get the gear that's up for it all.",
+            "caption": "nike.com",
+            "link_url": "https://www.nike.com/gb/t/primary-top/DV9831-010",
+            "title": "Nike Primary",
+            "original_image_url": "https://scontent.xx.fbcdn.net/v/t39/card1.jpg"
+          }
+        ],
+        "body": { "text": "Get the gear that's up for it all. Any time. Anywhere." },
+        "display_format": "DPA",
+        "link_url": "https://www.nike.com/",
+        "images": [],
+        "title": "{{product.name}}",
+        "videos": []
+      },
+      "page_name": "Nike",
+      "end_date": "2026-08-06T07:00:00Z",
+      "publisher_platform": ["FACEBOOK", "INSTAGRAM"],
+      "start_date": "2026-06-22T07:00:00Z"
+    },
+    {
+      "ad_archive_id": "678391674816799",
+      "page_id": "999",
+      "snapshot": {
+        "page_name": "Sneaker Shop",
+        "caption": "sneakershop.example",
+        "link_url": "https://sneakershop.example/nike",
+        "images": [{ "original_image_url": "https://scontent.xx.fbcdn.net/v/t39/img2.jpg" }],
+        "videos": []
+      },
+      "is_active": false,
+      "page_name": "Sneaker Shop",
+      "end_date": "2025-06-03T07:00:00Z",
+      "publisher_platform": ["INSTAGRAM"],
+      "start_date": "2025-06-02T07:00:00Z"
+    }
+  ],
+  "pagination": { "next_page_token": "AQHSK94lM1e985xt7XH" }
+}

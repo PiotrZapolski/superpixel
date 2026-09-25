@@ -1,0 +1,29 @@
+{
+  "search_parameters": { "engine": "tiktok_ads_library", "q": "lidl", "country": "all" },
+  "search_information": { "total_results": 1122 },
+  "ads": [
+    {
+      "position": 1,
+      "id": "1875196624813153",
+      "advertiser_id": "6952423671851909889",
+      "advertiser": "LIDL ROMANIA SRL",
+      "advertiser_token": "eyJpZCI6IjY5NTI0MjM2NzE4NTE5MDk4ODkiLCJuYW1lIjoiTElETCBST01BTklBIFNSTCJ9",
+      "format": "video",
+      "first_shown_datetime": "2026-09-02T00:00:00Z",
+      "last_shown_datetime": "2026-09-02T00:00:00Z",
+      "cover_image": "https://p16-common-sign.tiktokcdn.com/tos-no1a-p-0037-no/cover.image",
+      "estimated_audience": "10K-100K"
+    },
+    {
+      "position": 2,
+      "id": "1851293308357857",
+      "title": "Unavailable ad",
+      "format": "video",
+      "is_unavailable": true,
+      "first_shown_datetime": "2025-12-12T00:00:00Z",
+      "last_shown_datetime": "2025-12-12T00:00:00Z",
+      "estimated_audience": "0-1K"
+    }
+  ],
+  "pagination": { "next_page_token": "eyJzZWFyY2hfaWQiOiJleUpz" }
+}

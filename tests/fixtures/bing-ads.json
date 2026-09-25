@@ -1,0 +1,35 @@
+{
+  "@odata.count": 3,
+  "value": [
+    {
+      "AdId": 5001,
+      "AdvertiserName": "Decathlon",
+      "AdvertiserId": 1001,
+      "Title": "Decathlon Official Site",
+      "Description": "Sports gear for everyone. Free returns.",
+      "DisplayUrl": "www.decathlon.com/running",
+      "DestinationUrl": "https://www.decathlon.com/running?msclkid=abc123",
+      "AssetJson": null
+    },
+    {
+      "AdId": "5002",
+      "AdvertiserName": "Decathlon",
+      "AdvertiserId": "1001",
+      "Title": "Trail Shoes",
+      "Description": "New collection.",
+      "DisplayUrl": "decathlon.com",
+      "DestinationUrl": "",
+      "AssetJson": "{\"Images\":[{\"Url\":\"https://tse1.mm.bing.net/images/trail.jpg\"}]}"
+    },
+    {
+      "AdId": 5003,
+      "AdvertiserName": "Sport Reseller GmbH",
+      "AdvertiserId": 1002,
+      "Title": "Decathlon deals",
+      "Description": "Cheap sports gear.",
+      "DisplayUrl": "sportreseller.de",
+      "DestinationUrl": "https://sportreseller.de/decathlon",
+      "AssetJson": ""
+    }
+  ]
+}

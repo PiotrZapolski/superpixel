@@ -1,0 +1,14 @@
+{
+  "has_more": false,
+  "search_id": "abc",
+  "data": [
+    {
+      "ad_id": 1800000000000003,
+      "advertiser": { "name": "Decathlon UK", "biz_id": "7000000000000000002" },
+      "first_shown": "2024-08-01",
+      "last_shown": "2024-09-01",
+      "image_urls": ["https://p16.tiktokcdn.com/img/ad3.jpg"],
+      "reach": "1K-10K"
+    }
+  ]
+}

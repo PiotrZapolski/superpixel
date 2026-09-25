@@ -1,0 +1,40 @@
+{
+  "1": [
+    {
+      "1": "AR01234567890123456789",
+      "2": "CR11111111111111111111",
+      "3": {"3": {"2": "<img src=\"https://tpc.googlesyndication.com/archive/simgad/11111111111111111111?sqp=abc&amp;rs=AOga4qm\" height=\"250\" width=\"300\">"}},
+      "4": 2,
+      "6": {"1": "1719792000", "2": 0},
+      "7": {"1": "1727222400", "2": 500000000},
+      "12": "Decathlon SE",
+      "13": 1,
+      "14": "decathlon.com"
+    },
+    {
+      "1": "AR01234567890123456789",
+      "2": "CR22222222222222222222",
+      "3": {"1": {"4": "https://displayads-formats.googleusercontent.com/ads/preview/content.js?client=ads-integrity-transparency&obfuscatedCustomerId=1234567890&creativeId=222222&uiFeatures=12,54&adGroupId=0&itemIds=0&sig=ACiVB_x"}},
+      "4": 1,
+      "6": {"1": "1704067200", "2": 0},
+      "7": {"1": "1727136000", "2": 0},
+      "12": "Decathlon SE",
+      "13": 1,
+      "14": "decathlon.com"
+    },
+    {
+      "1": "AR09999999999999999999",
+      "2": "CR33333333333333333333",
+      "3": {"3": {"2": "<img src=\"https://i.ytimg.com/vi/abcDEF12345/hqdefault.jpg\">"}},
+      "4": 3,
+      "6": {"1": "1722470400", "2": 0},
+      "7": {"1": "1726963200", "2": 0},
+      "12": "Sports Reseller GmbH",
+      "13": 1,
+      "14": "sportsreseller.de"
+    }
+  ],
+  "2": "CgoAP7znOtJ9f2XrEhAAHm6H2sVb3aYv7qLqj0wA",
+  "4": "1000",
+  "5": "2000"
+}

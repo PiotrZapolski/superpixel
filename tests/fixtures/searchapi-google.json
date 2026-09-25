@@ -1,0 +1,30 @@
+{
+  "search_metadata": { "id": "search_DdeYJm72pz81t4BKo9ZEPlbV", "status": "Success" },
+  "search_parameters": { "engine": "google_ads_transparency_center", "domain": "tesla.com", "region": "anywhere" },
+  "search_information": { "total_results": 4000 },
+  "ad_creatives": [
+    {
+      "position": 1,
+      "id": "CR03335465984256376833",
+      "target_domain": "tesla.com",
+      "advertiser": { "id": "AR17828074650563772417", "name": "Tesla Inc." },
+      "first_shown_datetime": "2025-01-17T20:18:39Z",
+      "last_shown_datetime": "2025-03-04T19:41:49Z",
+      "total_days_shown": 46,
+      "format": "video",
+      "details_link": "https://adstransparency.google.com/advertiser/AR17828074650563772417/creative/CR03335465984256376833?region=anywhere"
+    },
+    {
+      "position": 2,
+      "id": "CR10302176029568925697",
+      "target_domain": "teslaparts.example",
+      "advertiser": { "id": "AR00000000000000000001", "name": "Parts Reseller" },
+      "first_shown_datetime": "2024-10-10T21:42:07Z",
+      "last_shown_datetime": "2025-03-04T19:39:45Z",
+      "format": "image",
+      "image": "https://tpc.googlesyndication.com/archive/simgad/123",
+      "details_link": "https://adstransparency.google.com/advertiser/AR00000000000000000001/creative/CR10302176029568925697?region=anywhere"
+    }
+  ],
+  "pagination": { "next_page_token": "Q2dvQVA3em5SWEhxbXl2ZkVo" }
+}

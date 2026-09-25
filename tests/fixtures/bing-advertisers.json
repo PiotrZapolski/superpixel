@@ -1,0 +1,6 @@
+{
+  "value": [
+    { "AdvertiserId": "1001", "AdvertiserName": "Decathlon", "AdvertiserCountry": "France", "IsVerified": true },
+    { "AdvertiserId": 1002, "AdvertiserName": "Sport Reseller GmbH", "AdvertiserCountry": "Germany", "IsVerified": false }
+  ]
+}

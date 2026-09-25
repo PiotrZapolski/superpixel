@@ -1,0 +1,18 @@
+{
+  "code": 0,
+  "msg": "OK",
+  "data": {
+    "ad": {
+      "id": "1800000000000001",
+      "caption": "Trail season is here",
+      "external_url": "https://www.decathlon.com/trail?utm_source=tiktok",
+      "video_info": { "cover_url": "https://p16-sign.tiktokcdn-eu.com/obj/cover1.jpeg", "url": "https://v16.tiktokcdn-eu.com/v1.mp4" }
+    },
+    "advertiser": {
+      "adv_name": "Decathlon",
+      "adv_biz_id": "7000000000000000001",
+      "paid_by": "Decathlon SE"
+    },
+    "share_url": "https://www.tiktok.com/@decathlon"
+  }
+}

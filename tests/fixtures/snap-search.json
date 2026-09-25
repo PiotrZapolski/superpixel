@@ -1,0 +1,41 @@
+{
+  "request_status": "SUCCESS",
+  "request_id": "5b3f92d000ff0943",
+  "paging": { "next_link": "https://adsapi.snapchat.com/v1/ads_library/ads/search?cursor=NEXTPAGE" },
+  "ad_previews": [
+    {
+      "sub_request_status": "SUCCESS",
+      "ad_preview": {
+        "id": "e3f1a9c2-88b4-4e77-9c1a-2f6d0a7b5c11",
+        "name": "Summer Collection Snap Ad",
+        "ad_type": "SNAP_AD",
+        "paying_advertiser_name": "Decathlon SE",
+        "ad_account_name": "Decathlon",
+        "profile_name": "Decathlon",
+        "profile_logo_url": "https://ads-media.snapchat.com/logos/decathlon.png",
+        "headline": "Gear up for summer",
+        "impressions_total": 452300,
+        "status": "ACTIVE",
+        "top_snap_media_type": "IMAGE",
+        "top_snap_media_download_link": "https://ads-media.snapchat.com/creatives/e3f1a9c2.jpg",
+        "start_date": "2026-06-01T00:00:00.000Z",
+        "web_view_url": "https://www.decathlon.com/summer"
+      }
+    },
+    {
+      "sub_request_status": "SUCCESS",
+      "ad_preview": {
+        "id": "7c4b2d18-1a9e-4f3c-b6d7-9e0f2a8c4d33",
+        "name": "Kitchen Storage Ad",
+        "ad_type": "COLLECTION_AD",
+        "paying_advertiser_name": "Decathlon Retail",
+        "profile_name": "Decathlon",
+        "headline": "Smarter storage",
+        "status": "PAUSED",
+        "top_snap_media_type": "VIDEO",
+        "top_snap_media_download_link": "https://ads-media.snapchat.com/creatives/7c4b2d18.mp4",
+        "start_date": "2026-03-14T00:00:00.000Z"
+      }
+    }
+  ]
+}
