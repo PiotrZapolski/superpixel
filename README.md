@@ -108,7 +108,7 @@ responsibility for how you use it, and you should use it responsibly and at your
 Tests run with Node's built in test runner and have no external dependencies:
 
 ```
-node --test tests/
+node --test 'tests/*.test.js'
 ```
 
 CI runs the same command on every push and pull request, together with a syntax check over every
