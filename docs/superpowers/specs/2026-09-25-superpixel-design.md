@@ -213,7 +213,7 @@ IDs are deduped per platform; `evidence` holds up to 3 short strings (matched ur
 
 `extractSeeds({domain, html, title, meta})` -> Seeds:
 - `brandCandidates` (ordered, deduped, case-insensitive): JSON-LD Organization/WebSite `name`,
-  `og:site_name`, `application-name`, title split on `|`, `-`, `:`, `·` and the Unicode dashes `–` `—` (write them as escapes in code) taking the shortest
+  `og:site_name`, `application-name`, title split on `|`, `-`, `:`, `·` and the Unicode dashes `U+2013` `U+2014` (write them as escapes in code) taking the shortest
   meaningful part that shares a token with the domain label, then the domain label itself
   (`decathlon` from `www.decathlon.co.uk`; handle multi-part TLDs `co.uk`, `com.au`, `com.br`,
   `co.jp`, `com.pl` via a small list in lib/domain.js). `brand` = first candidate.
