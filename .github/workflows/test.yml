@@ -19,7 +19,7 @@ jobs:
           for f in $(git ls-files '*.js'); do node --check "$f" || exit 1; done
 
       - name: Unit tests
-        run: node --test tests/
+        run: node --test 'tests/*.test.js'
 
       - name: No dash glyphs
         run: |
