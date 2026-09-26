@@ -1,3 +1,5 @@
+<img src="icons/icon128.png" width="64" height="64" alt="Superpixel icon">
+
 # Superpixel
 
 Superpixel is a Chrome extension (Manifest V3, plain JavaScript, no build step) for competitor
