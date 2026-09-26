@@ -2,7 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { detectTags, extractSeeds, splitHtml } from '../detect/detect.js';
+import {
+  detectTags,
+  extractSeeds,
+  splitHtml,
+  unescapeContainer,
+  detectTagsInContainer,
+  containerIds,
+  gtagLoaderIds,
+  mergeTags,
+} from '../detect/detect.js';
 import { SIGNATURES } from '../detect/signatures.js';
 import { probe } from '../detect/page-probe.js';
 
@@ -214,4 +223,108 @@ test('probe is self-contained (serialisable for chrome.scripting)', () => {
   assert.ok(src.startsWith('function probe()'));
   assert.ok(!/\bimport\b/.test(src));
   assert.ok(!src.includes('chrome.'));
+});
+
+// ---- live findings 2026-09-26: consent banners hide pixels; weak presence hits ----
+
+const GTM_CONTAINER = fixture('gtm-container.js');
+
+test('unescapeContainer turns escaped quotes, \\u003C and \\/ into plain characters', () => {
+  assert.equal(unescapeContainer('\\"vtp_pixelId\\":\\"1\\"'), '"vtp_pixelId":"1"');
+  assert.equal(unescapeContainer('a.load(\\\\\\"X\\\\\\")'), 'a.load("X")');
+  assert.equal(unescapeContainer('\\u003Cscript\\u003E\\/\\/x'), '<script>//x');
+  assert.equal(unescapeContainer(''), '');
+  assert.equal(unescapeContainer(null), '');
+});
+
+test('detectTagsInContainer finds pixels configured in a GTM container', () => {
+  const tags = detectTagsInContainer(GTM_CONTAINER, { evidence: 'GTM container GTM-M7VSTNNQ' });
+  const ids = idsByPlatform(tags);
+  assert.deepEqual(ids['Meta Pixel'], ['1488345105464802']);
+  assert.deepEqual(ids['TikTok Pixel'], ['D451OCJC77U1GG09RADG']);
+  assert.deepEqual(ids['Google Ads'], ['AW-16911376865']);
+  assert.deepEqual(ids['Google Analytics 4'], ['G-WHR3NL5TTJ']);
+  assert.deepEqual(ids['LinkedIn Insight'], ['5432101']);
+  assert.deepEqual(ids['Microsoft UET'], ['187000123']);
+  assert.deepEqual(ids['Google Tag Manager'], ['GTM-M7VSTNNQ']);
+  // Runtime mentions of vendor hosts without ids are not tags.
+  assert.equal(ids['Google Floodlight'], undefined);
+  assert.equal(ids['Reddit Pixel'], undefined);
+  for (const t of tags) {
+    assert.equal(t.source, 'container');
+    assert.deepEqual(t.evidence, ['GTM container GTM-M7VSTNNQ']);
+    assert.ok(t.ids.length > 0);
+  }
+});
+
+test('detectTagsInContainer: near-context and platform allow-list', () => {
+  const far = '"vtp_partnerId":"5432101"' + ' '.repeat(5000) + 'linkedin';
+  assert.equal(idsByPlatform(detectTagsInContainer(far))['LinkedIn Insight'], undefined);
+  const near = '{"function":"__bzi","vtp_partnerId":"5432101"}';
+  assert.deepEqual(idsByPlatform(detectTagsInContainer(near))['LinkedIn Insight'], ['5432101']);
+  // gtag.js: only Google destinations.
+  const gtag = detectTagsInContainer(GTM_CONTAINER, { evidence: 'Google tag G-WHR3NL5TTJ', platforms: ['Google Ads', 'Google Analytics 4', 'Google Floodlight'] });
+  assert.deepEqual(gtag.map((t) => t.platform).sort(), ['Google Ads', 'Google Analytics 4']);
+  assert.deepEqual(detectTagsInContainer(''), []);
+});
+
+test('containerIds and gtagLoaderIds pick ids to fetch (max 3)', () => {
+  const tags = [{ platform: 'Google Tag Manager', ids: ['GTM-AAAA1', 'GTM-BBBB2', 'GTM-CCCC3', 'GTM-DDDD4'] }, { platform: 'Meta Pixel', ids: ['1'] }];
+  assert.deepEqual(containerIds(tags), ['GTM-AAAA1', 'GTM-BBBB2', 'GTM-CCCC3']);
+  assert.deepEqual(containerIds([]), []);
+  assert.deepEqual(gtagLoaderIds({ resourceUrls: RESOURCE_URLS }), ['G-7XK2P9QRST']);
+  assert.deepEqual(
+    gtagLoaderIds({ html: '<script async src="https://www.googletagmanager.com/gtag/js?id=AW-16911376865&amp;l=dataLayer"></script>' }),
+    ['AW-16911376865'],
+  );
+});
+
+test('mergeTags adds container-only platforms and new ids, keeps page source', () => {
+  const page = detectTags({ html: '<script async src="https://www.googletagmanager.com/gtm.js?id=GTM-M7VSTNNQ"></script>' });
+  assert.ok(page.every((t) => t.source === 'page'));
+  const merged = mergeTags(page, detectTagsInContainer(GTM_CONTAINER, { evidence: 'GTM container GTM-M7VSTNNQ' }));
+  const byName = Object.fromEntries(merged.map((t) => [t.platform, t]));
+  assert.equal(byName['Google Tag Manager'].source, 'page');
+  assert.deepEqual(byName['Google Tag Manager'].ids, ['GTM-M7VSTNNQ']);
+  assert.equal(byName['Meta Pixel'].source, 'container');
+  assert.deepEqual(byName['Meta Pixel'].evidence, ['GTM container GTM-M7VSTNNQ']);
+  // Sorted by category: ads first, tag manager after analytics.
+  assert.equal(merged[0].category, 'ads');
+  // Existing platform gains a new id with container evidence.
+  const withAds = mergeTags(
+    [{ platform: 'Google Ads', category: 'ads', ids: ['AW-1234567'], evidence: ['inline script'], source: 'page' }],
+    [{ platform: 'Google Ads', category: 'ads', ids: ['AW-1234567', 'AW-16911376865'], evidence: ['GTM container GTM-X1234'], source: 'container' }],
+  );
+  assert.deepEqual(withAds[0].ids, ['AW-1234567', 'AW-16911376865']);
+  assert.deepEqual(withAds[0].evidence, ['inline script', 'GTM container GTM-X1234']);
+  assert.equal(withAds[0].source, 'page');
+});
+
+test('presence-only mentions in html (consent banner vendor lists) are dropped', () => {
+  const html = `<html><head>
+    <script>var cmpVendors = [{name:"Google Floodlight", hosts:["fls.doubleclick.net"]},
+      {name:"Reddit", hosts:["alb.reddit.com","www.redditstatic.com/ads/pixel.js"]},
+      {name:"Bing", script:"bat.bing.com/bat.js"}];</script>
+    </head><body><p>We use tr.snapchat.com and amazon-adsystem.com</p></body></html>`;
+  const tags = detectTags({ html });
+  for (const p of ['Google Floodlight', 'Reddit Pixel', 'Microsoft UET', 'Snap Pixel', 'Amazon Ads']) {
+    assert.equal(tags.find((t) => t.platform === p), undefined, `${p} should be dropped`);
+  }
+  // A loaded resource url or a pixel global still counts.
+  const real = detectTags({
+    html,
+    resourceUrls: ['https://alb.reddit.com/rp.gif?id=t2_abc'],
+    globals: { present: { uetq: true } },
+  });
+  assert.ok(real.find((t) => t.platform === 'Reddit Pixel'));
+  assert.ok(real.find((t) => t.platform === 'Microsoft UET'));
+  assert.equal(real.find((t) => t.platform === 'Google Floodlight'), undefined);
+  // Ids found in inline scripts are kept.
+  const withId = detectTags({ html: "<script>rdt('init','t2_abcdef');</script>" });
+  assert.deepEqual(withId.find((t) => t.platform === 'Reddit Pixel').ids, ['t2_abcdef']);
+});
+
+test('probe counts only function/object globals as present', () => {
+  const src = probe.toString();
+  assert.match(src, /typeof v === 'function' \|\| typeof v === 'object'/);
 });

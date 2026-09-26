@@ -3,7 +3,7 @@
 import { hostMatches, normalizeDomain } from '../lib/domain.js';
 import { sleep, toIsoDate } from '../lib/util.js';
 import { decodeEntities } from '../lib/html.js';
-import { makeAd, makeResult, aggregateAdvertisers, dedupeAds } from '../lib/model.js';
+import { makeAd, makeResult, aggregateAdvertisers, dedupeAds, accountNote, advertiserSummary } from '../lib/model.js';
 
 export const meta = {
   id: 'google',
@@ -50,6 +50,51 @@ export function buildSearchBody(domain, { cursor, youtube } = {}) {
   if (cursor) req[4] = String(cursor);
   return 'f.req=' + encodeURIComponent(JSON.stringify(req));
 }
+
+/** Same request, filtered by advertiser id instead of domain: one page of that account's ads. */
+export function buildAdvertiserBody(advertiserId) {
+  const req = { 2: 40, 3: { 13: { 1: [String(advertiserId || '')] } }, 7: { 1: 1, 2: 24, 3: 2616 } };
+  return 'f.req=' + encodeURIComponent(JSON.stringify(req));
+}
+
+/**
+ * Profile of one advertiser from its SearchCreatives page: distinct row field-14 domains.
+ * @returns {{ok:boolean, domains:string[], rows:number, totalAds:string|null}}
+ *   totalAds: exact count when the page holds everything, else the response range.
+ */
+export function parseAdvertiserProfile(json) {
+  const data = parseBody(json);
+  const out = { ok: false, domains: [], rows: 0, totalAds: null };
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return out;
+  const rows = Array.isArray(data[1]) ? data[1] : Object.keys(data).length === 0 ? [] : null;
+  if (!rows) return out;
+  out.ok = true;
+  const set = new Set();
+  for (const r of rows) {
+    if (!r || typeof r !== 'object') continue;
+    out.rows++;
+    const d = typeof r[14] === 'string' ? r[14].trim().toLowerCase() : '';
+    if (!d) continue;
+    let n = '';
+    try {
+      n = normalizeDomain(d) || d;
+    } catch {
+      n = d;
+    }
+    set.add(n);
+  }
+  out.domains = [...set];
+  const cursor = typeof data[2] === 'string' && data[2];
+  const lo = data[4] != null && data[4] !== '' ? String(data[4]) : '';
+  const hi = data[5] != null && data[5] !== '' ? String(data[5]) : '';
+  if (!cursor) out.totalAds = String(out.rows);
+  else if (lo && hi && lo !== hi) out.totalAds = `${lo}-${hi}`;
+  else out.totalAds = lo || hi || `${out.rows}+`;
+  return out;
+}
+
+/** Max 'other' advertisers profiled per scan (one request each). */
+export const MAX_PROFILED_ADVERTISERS = 10;
 
 function parseBody(json) {
   if (typeof json !== 'string') return json;
@@ -159,6 +204,7 @@ export async function search(seeds, ctx) {
   const byId = new Map();
   let totalRange = null;
   const notes = [];
+  const profiles = new Map();
 
   const finish = (status, message) => {
     stats.ms = Date.now() - t0;
@@ -176,6 +222,14 @@ export async function search(seeds, ctx) {
     } catch {
       advertisers = [];
     }
+    for (const a of advertisers) {
+      const p = profiles.get(a.id);
+      if (!p) continue;
+      a.totalAds = p.totalAds;
+      a.domains = p.domains.length;
+      const onlyTarget = p.domains.length > 0 && p.domains.every((d) => matchesDomain(d, domain));
+      a.note = accountNote(p.domains.length, onlyTarget);
+    }
     const msgParts = [];
     if (message) msgParts.push(message);
     if (totalRange) msgParts.push(`~${totalRange} ads on this domain`);
@@ -187,7 +241,41 @@ export async function search(seeds, ctx) {
       ads,
       deepLinks: links,
       stats,
+      summary: advertiserSummary(advertisers),
     });
+  };
+
+  const headersFor = (token) => ({
+    'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    'X-Same-Domain': '1',
+    'X-Framework-Xsrf-Token': token,
+  });
+
+  // Shared / agency accounts: one SearchCreatives page per 'other' advertiser (by advertiser id)
+  // to count the distinct sites it advertises. No retries: stop at the first 429 or captcha.
+  const profileOthers = async (token) => {
+    let advertisers = [];
+    try {
+      advertisers = aggregateAdvertisers(dedupeAds([...byId.values()]), { platform: 'google' }) || [];
+    } catch {
+      return;
+    }
+    const others = advertisers
+      .filter((a) => a.role === 'other' && /^AR[0-9A-Za-z]+$/.test(a.id))
+      .slice(0, MAX_PROFILED_ADVERTISERS);
+    for (let i = 0; i < others.length; i++) {
+      ctx.progress && ctx.progress(`Google: checking other advertisers ${i + 1}/${others.length}`);
+      await ctx.throttle();
+      stats.requests++;
+      const res = await ctx.fetch(SEARCH_URL, { method: 'POST', headers: headersFor(token), body: buildAdvertiserBody(others[i].id) });
+      if ((res.url && res.url.includes('/sorry/')) || res.status === 429) {
+        notes.push(`Advertiser check stopped after ${i} of ${others.length}: Google is rate limiting`);
+        break;
+      }
+      if (!res.ok) continue;
+      const p = parseAdvertiserProfile(await res.text());
+      if (p.ok) profiles.set(others[i].id, p);
+    }
   };
 
   const captchaMsg = 'Google shows a captcha, open the link and solve it';
@@ -288,6 +376,16 @@ export async function search(seeds, ctx) {
       if (!ytCursor || !parsed.ads.length) break;
     }
     if (ytCount) notes.push(`${ytCount} YouTube ads`);
+
+    // 4. Other (small) advertisers: shared / agency accounts or single-site accounts?
+    if (byId.size) {
+      try {
+        await profileOthers(token);
+      } catch (e) {
+        if (ctx.signal && ctx.signal.aborted) throw e;
+        notes.push('Advertiser check failed');
+      }
+    }
 
     return finish(byId.size ? 'ok' : 'empty', byId.size ? '' : 'No Google ads found for this domain');
   } catch (e) {

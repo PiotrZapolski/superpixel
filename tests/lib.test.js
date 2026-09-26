@@ -16,6 +16,8 @@ import {
   PLATFORM_ORDER,
   makeAd,
   makeAdvertiser,
+  accountNote,
+  advertiserSummary,
   makeResult,
   aggregateAdvertisers,
   promoteAdvertiserMatches,
@@ -379,4 +381,24 @@ test('safeUrl never keeps query strings; errText adds the first stack line', () 
   const e = new Error('bad');
   assert.match(errText(e), /^bad \(at /);
   assert.equal(errText('plain'), 'plain');
+});
+
+test('makeAdvertiser defaults domains/note; accountNote and advertiserSummary', () => {
+  const a = makeAdvertiser({ id: 'x' });
+  assert.equal(a.domains, null);
+  assert.equal(a.note, '');
+  assert.equal(accountNote(4, false), 'Shared account: ads for 4 different sites');
+  assert.equal(accountNote(3, true), 'Shared account: ads for 3 different sites');
+  assert.equal(accountNote(1, true), 'Only advertises this domain');
+  assert.equal(accountNote(2, false), '');
+  assert.deepEqual(
+    advertiserSummary([
+      makeAdvertiser({ id: 'a', role: 'primary' }),
+      makeAdvertiser({ id: 'b', role: 'other', domains: 12 }),
+      makeAdvertiser({ id: 'c', role: 'other', domains: 1 }),
+      null,
+    ]),
+    { primary: 1, other: 2, sharedAccounts: 1 },
+  );
+  assert.deepEqual(advertiserSummary(undefined), { primary: 0, other: 0, sharedAccounts: 0 });
 });

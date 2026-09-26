@@ -96,17 +96,26 @@ function imgUrls(html) {
   return out.filter((u) => /^https?:\/\/[^/]*media\.licdn\.com\//i.test(u));
 }
 
+// Screen-reader-only elements ("View details", localised) are not card content.
+const SR_ONLY_RE = /<(span|div|p)\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:sr-only|visually-hidden|a11y-text)\b[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi;
+const MAX_HEADER_LINES = 4;
+
 /**
  * Parse search result cards.
- * @returns {{id:string, advertiserName:string, text:string, headline:string, imageUrl:string, promotedBy:string}[]}
+ * Thought-leader ads (an employee's post promoted by the company) show the person's name, their
+ * headline and "Promoted by <Company>" (localised, e.g. "Promowane przez <Company>"). The English
+ * form is read here; attributePromotedCards() resolves the localised form across all cards.
+ * @returns {{id:string, advertiserName:string, text:string, headline:string, imageUrl:string,
+ *   promotedBy:string, person:string, headerLines:string[]}[]}
  */
 export function parseLinkedinSearch(html) {
   const out = [];
   const seen = new Set();
-  for (const card of splitCards(html)) {
-    const idm = DETAIL_RE.exec(card);
+  for (const rawCard of splitCards(html)) {
+    const idm = DETAIL_RE.exec(rawCard);
     if (!idm || seen.has(idm[1])) continue;
     seen.add(idm[1]);
+    const card = rawCard.replace(SR_ONLY_RE, ' ');
     const text = firstClassText(card, 'commentary__content');
     const headline = firstClassText(card, 'sponsored-content-headline') || firstClassText(card, 'headline');
     const lines = htmlLines(card).filter((l) => !NOISE_LINE_RE.test(l));
@@ -117,11 +126,93 @@ export function parseLinkedinSearch(html) {
       promotedBy = inline || lines[promotedIdx + 1] || '';
     }
     const nameLine = lines.find((l) => !/^promoted by\b/i.test(l) && l !== text && l !== headline && l.length <= 120) || '';
+    // Lines above the ad content: name, [person headline], "Promoted" / "Promoted by X".
+    // Cut the markup at the commentary / headline element when present, else at the text line.
+    const marks = ['commentary__content', 'sponsored-content-headline'].map((c) => card.indexOf(c)).filter((i) => i >= 0);
+    let headerSrc = lines;
+    if (marks.length) {
+      const tagStart = card.lastIndexOf('<', Math.min(...marks));
+      headerSrc = htmlLines(card.slice(0, tagStart >= 0 ? tagStart : Math.min(...marks))).filter((l) => !NOISE_LINE_RE.test(l));
+    }
+    const headerLines = [];
+    for (const l of headerSrc) {
+      if (headerLines.length >= MAX_HEADER_LINES) break;
+      if (l === headline || (text && l === text)) break;
+      headerLines.push(l);
+    }
     const imgs = imgUrls(card);
     const imageUrl = imgs.find((u) => !/company-logo|profile-displayphoto|profile-framedphoto/i.test(u)) || '';
-    out.push({ id: idm[1], advertiserName: nameLine, text, headline, imageUrl, promotedBy });
+    out.push({
+      id: idm[1],
+      advertiserName: nameLine,
+      text,
+      headline,
+      imageUrl,
+      promotedBy,
+      person: promotedBy ? nameLine : '',
+      headerLines,
+    });
   }
   return out;
+}
+
+function norm(s) {
+  return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/** True when `line` ends with `name` on a word boundary (and is not just the name itself). */
+function endsWithName(line, name) {
+  const l = norm(line);
+  const n = norm(name);
+  if (n.length < 2 || l.length <= n.length || !l.endsWith(n)) return false;
+  return !/[\p{L}\p{N}]/u.test(l.charAt(l.length - n.length - 1));
+}
+
+/**
+ * Language-agnostic thought-leader detection over all cards: a card whose header has at least two
+ * lines (person name + headline, or name + promo line) and a later line ending with a known
+ * company name (another card's advertiser, the brand or an advertiser name seed) is attributed to
+ * that company: promotedBy = company, person = the card's own name line. Mutates and returns cards.
+ * @param {object[]} cards parsed cards (parseLinkedinSearch)
+ * @param {string[]} [extraNames] brand + advertiser names
+ */
+export function attributePromotedCards(cards, extraNames = []) {
+  const list = Array.isArray(cards) ? cards : [];
+  const known = [];
+  const seen = new Set();
+  const addName = (n) => {
+    const s = String(n || '').replace(/\s+/g, ' ').trim();
+    if (s.length < 2 || s.length > 120 || seen.has(s.toLowerCase())) return;
+    seen.add(s.toLowerCase());
+    known.push(s);
+  };
+  for (const c of list) if (c && !c.person) addName(c.promotedBy || c.advertiserName);
+  for (const c of list) if (c && c.promotedBy) addName(c.promotedBy);
+  for (const n of Array.isArray(extraNames) ? extraNames : []) addName(n);
+  // Longest names first so "Acme Sports" wins over "Sports".
+  known.sort((a, b) => b.length - a.length);
+
+  for (const c of list) {
+    if (!c || c.promotedBy) continue;
+    const header = Array.isArray(c.headerLines) ? c.headerLines : [];
+    if (header.length < 2) continue;
+    const own = norm(c.advertiserName);
+    let company = '';
+    for (let i = header.length - 1; i >= 1 && !company; i--) {
+      for (const name of known) {
+        if (norm(name) === own) continue;
+        // "Promowane przez Acme", or "Acme" alone on its own line below name + headline.
+        if (endsWithName(header[i], name) || (i >= 2 && norm(header[i]) === norm(name))) {
+          company = name;
+          break;
+        }
+      }
+    }
+    if (!company) continue;
+    c.person = c.advertiserName;
+    c.promotedBy = company;
+  }
+  return list;
 }
 
 /** `<code id="paginationMetadata"><!--{json}--></code>` -> {isLastPage, paginationToken} | null */
@@ -212,13 +303,18 @@ export function mapLinkedinAd(card, detail, domain) {
   const landingUrl = d.landingUrl || '';
   const confirmed = Boolean(landingUrl && domain && hostMatches(landingUrl, domain));
   const name = card.promotedBy || d.advertiserName || card.advertiserName || '';
+  // Thought-leader ad: the post belongs to an employee, the company pays for it.
+  const person = card.promotedBy ? card.person || '' : '';
+  const title = person
+    ? `Employee post: ${person}${card.headline ? ` - ${card.headline}` : ''}`
+    : card.headline || '';
   return makeAd({
     platform: 'linkedin',
     id: String(card.id),
     advertiserId: d.companyId || name,
     advertiserName: name,
     format: card.imageUrl ? 'image' : 'text',
-    title: card.headline || '',
+    title,
     text: card.text || '',
     landingUrl,
     displayUrl: '',
@@ -293,13 +389,18 @@ export async function search(seeds, ctx) {
     const nameToCompany = new Map();
     for (const [id, d] of details) {
       const c = cards.get(id);
-      const name = c && (c.promotedBy || d.advertiserName || c.advertiserName);
-      if (d.companyId && name && !nameToCompany.has(name.toLowerCase())) nameToCompany.set(name.toLowerCase(), d.companyId);
+      if (!d.companyId || !c) continue;
+      for (const name of [c.promotedBy || c.advertiserName, !c.person ? d.advertiserName : '']) {
+        const k = String(name || '').toLowerCase();
+        if (k && !nameToCompany.has(k)) nameToCompany.set(k, d.companyId);
+      }
     }
     let ads = [...cards.values()].map((c) => {
       let d = details.get(c.id);
       const name = (c.promotedBy || c.advertiserName || '').toLowerCase();
-      if (!d && nameToCompany.has(name)) d = { companyId: nameToCompany.get(name), landingUrl: '', advertiserName: '' };
+      if ((!d || !d.companyId) && nameToCompany.has(name)) {
+        d = { landingUrl: '', advertiserName: '', ...(d || {}), companyId: nameToCompany.get(name) };
+      }
       return mapLinkedinAd(c, d, domain);
     });
     ads = dedupeAds(ads);
@@ -343,8 +444,11 @@ export async function search(seeds, ctx) {
       }
     }
 
+    // Thought-leader ads: attribute employee posts to the promoting company (any UI language).
+    attributePromotedCards([...cards.values()], owners);
+
     if (!rateLimited && !authwall) {
-      const max = Number.isFinite(Number(settings.linkedinDetails)) ? Number(settings.linkedinDetails) : 10;
+      const max =Number.isFinite(Number(settings.linkedinDetails)) ? Number(settings.linkedinDetails) : 10;
       const names = owners.map((o) => o.toLowerCase());
       const rank = (c) => {
         const n = (c.promotedBy || c.advertiserName || '').toLowerCase();

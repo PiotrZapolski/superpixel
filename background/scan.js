@@ -5,9 +5,11 @@ import { normalizeDomain, hostOf, registrableDomain } from '../lib/domain.js';
 import { sleep, withTimeout } from '../lib/util.js';
 import { makeResult, makeAd, dedupeAds, assignRoles, advertiserNameSeeds } from '../lib/model.js';
 import { stripTags } from '../lib/html.js';
-import { detectTags, extractSeeds } from '../detect/detect.js';
+import { detectTags, extractSeeds, containerIds, gtagLoaderIds, detectTagsInContainer, mergeTags } from '../detect/detect.js';
+import { GTAG_PLATFORMS } from '../detect/signatures.js';
 import { probe } from '../detect/page-probe.js';
 import { ADAPTERS } from '../adapters/index.js';
+import { manualLibraries } from '../adapters/manual.js';
 import * as searchapi from '../adapters/searchapi.js';
 import { loadSettings } from './settings.js';
 import * as cache from './cache.js';
@@ -83,6 +85,61 @@ async function fetchHomepage(domain, signal) {
   }
 }
 
+const CONTAINER_TIMEOUT_MS = 15000;
+export const MAX_CONTAINERS = 3;
+const GTM_JS_URL = 'https://www.googletagmanager.com/gtm.js?id=';
+const GTAG_JS_URL = 'https://www.googletagmanager.com/gtag/js?id=';
+
+/** Plain SW fetch of a Google tag script (page CSP does not apply here), 15s timeout, no cookies. */
+async function fetchTagScript(url, signal) {
+  let sig = signal;
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    const t = AbortSignal.timeout(CONTAINER_TIMEOUT_MS);
+    sig = signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, t]) : t;
+  }
+  try {
+    const res = await fetch(url, { credentials: 'omit', signal: sig });
+    if (!res.ok) {
+      logWarn('scan', `HTTP ${res.status} ${safeUrl(url)}`);
+      return '';
+    }
+    return await res.text();
+  } catch (e) {
+    if (signal && signal.aborted) throw e;
+    logWarn('scan', `Tag script fetch failed ${safeUrl(url)}: ${errText(e)}`);
+    return '';
+  }
+}
+
+/**
+ * Tags configured in the site's GTM containers and Google tag loaders. Sites with a consent
+ * banner load no pixel before consent, so the page shows only GTM; the container still lists
+ * every tag it would fire.
+ */
+async function containerTags(tags, ctxData, emit, signal) {
+  const gtm = containerIds(tags, MAX_CONTAINERS);
+  const gtag = gtagLoaderIds(
+    {
+      resourceUrls: (ctxData && Array.isArray(ctxData.resourceUrls) && ctxData.resourceUrls) || [],
+      html: (ctxData && typeof ctxData.html === 'string' && ctxData.html) || '',
+    },
+    MAX_CONTAINERS,
+  );
+  if (!gtm.length && !gtag.length) return [];
+  emit({ type: 'phase', text: 'Reading the site\'s Google Tag Manager container' });
+  const found = [];
+  for (const id of gtm) {
+    const js = await fetchTagScript(GTM_JS_URL + encodeURIComponent(id), signal);
+    if (js) found.push(...detectTagsInContainer(js, { evidence: `GTM container ${id}` }));
+  }
+  for (const id of gtag) {
+    const js = await fetchTagScript(GTAG_JS_URL + encodeURIComponent(id), signal);
+    if (js) found.push(...detectTagsInContainer(js, { evidence: `Google tag ${id}`, platforms: GTAG_PLATFORMS }));
+  }
+  if (found.length) logInfo('scan', `Container tags: ${found.map((t) => `${t.platform} ${t.ids.join('/')}`).join(', ')}`);
+  return found;
+}
+
 async function resolveInput(input) {
   const mode = input && input.mode === 'tab' ? 'tab' : 'domain';
   if (mode === 'tab') {
@@ -137,6 +194,13 @@ async function layerA({ mode, domain, tabId }, settings, emit, signal) {
   } catch (e) {
     logError('scan', `detectTags failed: ${errText(e)}`);
     tags = [];
+  }
+  try {
+    const extra = await containerTags(tags, ctxData, emit, signal);
+    if (extra.length) tags = mergeTags(tags, extra);
+  } catch (e) {
+    if (signal && signal.aborted) throw e;
+    logWarn('scan', `Container scan failed: ${errText(e)}`);
   }
   let seeds = null;
   try {
@@ -344,6 +408,13 @@ export async function runScan({ input, force } = {}, emit, signal) {
 
     ({ tags, seeds } = await layerA(resolved, settings, say, signal));
     say({ type: 'tags', tags, seeds: publicSeeds(seeds) });
+    let manual = [];
+    try {
+      manual = manualLibraries(seeds);
+    } catch (e) {
+      logWarn('scan', `manualLibraries failed: ${errText(e)}`);
+    }
+    say({ type: 'manual', libraries: manual });
 
     say({ type: 'phase', text: 'Searching ad libraries' });
     const enabled = [];
@@ -405,7 +476,7 @@ export async function runScan({ input, force } = {}, emit, signal) {
     const summary = summarize(domain, tags, results, t0, stopped);
     try {
       await chrome.storage.local.set({
-        lastScan: { domain, at: new Date().toISOString(), tags, seeds: publicSeeds(seeds), results },
+        lastScan: { domain, at: new Date().toISOString(), tags, seeds: publicSeeds(seeds), results, manual },
       });
     } catch (e) {
       // quota errors are not fatal

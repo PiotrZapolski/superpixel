@@ -11,6 +11,8 @@ import {
   splitCards,
   companyIdsFromSocial,
   isAdLibraryPage,
+  attributePromotedCards,
+  mapLinkedinAd,
   search,
 } from '../adapters/linkedin.js';
 
@@ -194,4 +196,70 @@ test('search() adds accountOwner searches for up to 2 advertiser names', async (
   assert.deepEqual(owners, ['babylovegrowth', 'BLG INC', 'BLG']);
   assert.equal(res.status, 'empty');
   assert.match(res.message, /babylovegrowth, BLG INC, BLG/);
+});
+
+// ---- live finding 2026-09-26: thought-leader ads (employee posts promoted by the company) ----
+
+const PL_HTML = fixture('linkedin-search-pl.html');
+
+test('parseLinkedinSearch drops sr-only text and keeps header lines (Polish UI)', () => {
+  const cards = parseLinkedinSearch(PL_HTML);
+  assert.deepEqual(cards.map((c) => c.id), ['1001', '1002', '1003']);
+  assert.equal(cards[0].advertiserName, 'BabyLoveGrowth');
+  assert.equal(cards[1].advertiserName, 'Tilen Babnik');
+  assert.deepEqual(cards[1].headerLines, ['Tilen Babnik', 'Co-founder | SEO automation', 'Promowane przez BabyLoveGrowth']);
+  assert.equal(cards[1].promotedBy, '');
+});
+
+test('attributePromotedCards resolves localised "promoted by" lines to a known company', () => {
+  const cards = attributePromotedCards(parseLinkedinSearch(PL_HTML), ['babylovegrowth']);
+  const [company, employee, stranger] = cards;
+  assert.equal(company.promotedBy, '');
+  assert.equal(employee.promotedBy, 'BabyLoveGrowth');
+  assert.equal(employee.person, 'Tilen Babnik');
+  // "Other Corp" is neither another card's advertiser nor the brand: left alone.
+  assert.equal(stranger.promotedBy, '');
+  assert.equal(stranger.person, '');
+});
+
+test('attributePromotedCards matches the brand when no company card is present', () => {
+  const only = parseLinkedinSearch(PL_HTML).slice(1, 2);
+  assert.equal(attributePromotedCards(only, [])[0].promotedBy, '');
+  const withBrand = attributePromotedCards(parseLinkedinSearch(PL_HTML).slice(1, 2), ['BabyLoveGrowth']);
+  assert.equal(withBrand[0].promotedBy, 'BabyLoveGrowth');
+});
+
+test('mapLinkedinAd titles employee posts and keeps the text', () => {
+  const ad = mapLinkedinAd({ id: '9', advertiserName: 'Jane Doe', person: 'Jane Doe', promotedBy: 'Decathlon', headline: 'Our HQ', text: 'Proud of the team', imageUrl: '' }, null, 'decathlon.com');
+  assert.equal(ad.advertiserName, 'Decathlon');
+  assert.equal(ad.title, 'Employee post: Jane Doe - Our HQ');
+  assert.equal(ad.text, 'Proud of the team');
+  const plain = mapLinkedinAd({ id: '8', advertiserName: 'Decathlon', promotedBy: '', headline: 'Trail', text: 't', imageUrl: '' }, null, 'decathlon.com');
+  assert.equal(plain.title, 'Trail');
+});
+
+test('search() attributes employee posts to the promoting company and its id', async () => {
+  const detail = '<html><body><a href="https://www.linkedin.com/company/777">BabyLoveGrowth</a>'
+    + '<a href="https://www.linkedin.com/redir/redirect?url=https%3A%2F%2Fbabylovegrowth.ai%2Fpricing">Start</a></body></html>';
+  const ctx = {
+    settings: { linkedinPages: 1, linkedinDetails: 1 },
+    async fetch(url) {
+      if (url.includes('/ad-library/detail/1001')) return fakeResponse(detail, { url });
+      if (url.includes('/ad-library/detail/')) return fakeResponse('<html></html>', { url });
+      return fakeResponse(PL_HTML, { url });
+    },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'babylovegrowth', social: { linkedin: [] } }, ctx);
+  assert.equal(res.status, 'ok');
+  const byId = Object.fromEntries(res.ads.map((a) => [a.id, a]));
+  assert.equal(byId['1001'].match, 'confirmed');
+  assert.equal(byId['1002'].advertiserName, 'BabyLoveGrowth');
+  assert.equal(byId['1002'].advertiserId, '777');
+  assert.equal(byId['1002'].title, 'Employee post: Tilen Babnik');
+  assert.equal(byId['1002'].text, 'We grew organic traffic 4x in 90 days. Here is how.');
+  assert.equal(byId['1002'].match, 'advertiser');
+  assert.ok(!res.advertisers.some((a) => a.name === 'Tilen Babnik'));
+  const blg = res.advertisers.find((a) => a.id === '777');
+  assert.equal(blg.adCount, 2);
+  assert.equal(blg.confirmedCount, 1);
 });

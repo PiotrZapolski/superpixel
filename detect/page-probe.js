@@ -129,16 +129,20 @@ export function probe() {
   try { if (w.adroll_adv_id) out.globals.adroll.adv = String(w.adroll_adv_id); } catch (e) {}
   try { if (w.adroll_pix_id) out.globals.adroll.pix = String(w.adroll_pix_id); } catch (e) {}
 
-  // ---- presence flags
+  // ---- presence flags: only a function / object (what the pixel snippet creates) counts,
+  // never a string or number some other script (e.g. a consent manager) left on window.
+  function isLive(v) {
+    return v !== null && (typeof v === 'function' || typeof v === 'object');
+  }
   var names = ['uetq', 'twq', 'pintrk', 'snaptr', 'rdt', 'qp', '_tfa', 'obApi', 'criteo_q', '_hsq',
     'clarity', 'ym', 'dataLayer', 'gtag', 'ttq'];
   for (var n = 0; n < names.length; n++) {
-    try { out.globals.present[names[n]] = w[names[n]] !== undefined && w[names[n]] !== null; } catch (e) {
+    try { out.globals.present[names[n]] = isLive(w[names[n]]); } catch (e) {
       out.globals.present[names[n]] = false;
     }
   }
-  try { out.globals.present.fbq = !!(w.fbq || w._fbq); } catch (e) { out.globals.present.fbq = false; }
-  try { out.globals.present.klaviyo = !!(w.klaviyo || w._learnq); } catch (e) { out.globals.present.klaviyo = false; }
+  try { out.globals.present.fbq = isLive(w.fbq) || isLive(w._fbq); } catch (e) { out.globals.present.fbq = false; }
+  try { out.globals.present.klaviyo = isLive(w.klaviyo) || isLive(w._learnq); } catch (e) { out.globals.present.klaviyo = false; }
 
   // ---- meta tags + JSON-LD
   function metaAttr(sel) {

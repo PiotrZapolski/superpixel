@@ -2,7 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { meta, deepLinks, parseXsrf, buildSearchBody, parseCreatives, search } from '../adapters/google.js';
+import {
+  meta,
+  deepLinks,
+  parseXsrf,
+  buildSearchBody,
+  buildAdvertiserBody,
+  parseAdvertiserProfile,
+  parseCreatives,
+  search,
+} from '../adapters/google.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const CREATIVES = fixture('google-search-creatives.json');
@@ -236,4 +245,88 @@ test('search marks the owner primary and small accounts (affiliates, brand bidde
   assert.equal(res.advertisers[0].role, 'primary');
   assert.ok(res.advertisers.slice(1).every((a) => a.role === 'other'));
   assert.ok(res.ads.every((a) => a.match === 'confirmed'));
+});
+
+// ---- live finding 2026-09-26: 1-ad 'other' advertisers are often shared (agency) accounts ----
+
+const ADVERTISER_PAGE = fixture('google-advertiser-creatives.json');
+
+test('buildAdvertiserBody filters by advertiser id with the verified field 7', () => {
+  assert.equal(
+    decodeBody(buildAdvertiserBody('AR05555555555555555555')),
+    '{"2":40,"3":{"13":{"1":["AR05555555555555555555"]}},"7":{"1":1,"2":24,"3":2616}}'
+  );
+});
+
+test('parseAdvertiserProfile counts distinct domains and total ads', () => {
+  const p = parseAdvertiserProfile(ADVERTISER_PAGE);
+  assert.equal(p.ok, true);
+  assert.equal(p.rows, 6);
+  assert.deepEqual(p.domains.sort(), ['babylovegrowth.ai', 'casino-bonus.example', 'shop-giay-dep.vn', 'vpn-deals.example']);
+  assert.equal(p.totalAds, '6');
+  const more = parseAdvertiserProfile(JSON.stringify({ 1: [{ 1: 'AR1', 2: 'CR1', 14: 'a.com' }], 2: 'cursor', 4: '28', 5: '28' }));
+  assert.equal(more.totalAds, '28');
+  assert.equal(parseAdvertiserProfile('nope').ok, false);
+});
+
+function blgRows() {
+  const rows = [];
+  for (let i = 0; i < 20; i++) {
+    rows.push({ 1: 'AR00000000000000000001', 2: `CR1${String(i).padStart(20, '0')}`, 4: 2, 12: 'BLG INC', 14: 'babylovegrowth.ai' });
+  }
+  rows.push({ 1: 'AR05555555555555555555', 2: 'CR50000000000000000001', 4: 2, 12: 'CONG TY TNHH TM DV HOANG NGOC', 14: 'babylovegrowth.ai' });
+  rows.push({ 1: 'AR07777777777777777777', 2: 'CR70000000000000000001', 4: 1, 12: 'Solo Reseller', 14: 'babylovegrowth.ai' });
+  return rows;
+}
+
+test('search profiles other advertisers: shared account note, only-this-domain note, summary', async () => {
+  const solo = JSON.stringify({ 1: [{ 1: 'AR07777777777777777777', 2: 'CR70000000000000000001', 14: 'babylovegrowth.ai' }, { 1: 'AR07777777777777777777', 2: 'CR70000000000000000002', 14: 'www.babylovegrowth.ai' }] });
+  const byAdvertiser = [];
+  const ctx = fakeCtx((url, init) => {
+    if (!init.method) return fakeResponse("xsrfToken: 'T'");
+    const req = JSON.parse(new URLSearchParams(init.body).get('f.req'));
+    if (req['3']['13']) {
+      const id = req['3']['13']['1'][0];
+      byAdvertiser.push(id);
+      return fakeResponse(id === 'AR05555555555555555555' ? ADVERTISER_PAGE : solo);
+    }
+    return fakeResponse(JSON.stringify(req['3']['14'] ? { 1: [] } : { 1: blgRows() }));
+  });
+  const res = await search({ domain: 'babylovegrowth.ai' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.deepEqual(byAdvertiser.sort(), ['AR05555555555555555555', 'AR07777777777777777777']);
+  const vn = res.advertisers.find((a) => a.id === 'AR05555555555555555555');
+  assert.equal(vn.role, 'other');
+  assert.equal(vn.domains, 4);
+  assert.equal(vn.totalAds, '6');
+  assert.equal(vn.note, 'Shared account: ads for 4 different sites');
+  const soloAdv = res.advertisers.find((a) => a.id === 'AR07777777777777777777');
+  assert.equal(soloAdv.domains, 1);
+  assert.equal(soloAdv.note, 'Only advertises this domain');
+  const owner = res.advertisers.find((a) => a.id === 'AR00000000000000000001');
+  assert.equal(owner.role, 'primary');
+  assert.equal(owner.domains, null);
+  assert.equal(owner.note, '');
+  assert.deepEqual(res.summary, { primary: 1, other: 2, sharedAccounts: 1 });
+  // Only one extra request per other advertiser; the domain ads are not polluted.
+  assert.equal(res.ads.length, 22);
+});
+
+test('search stops profiling at the first 429 and keeps the result ok', async () => {
+  let profileCalls = 0;
+  const ctx = fakeCtx((url, init) => {
+    if (!init.method) return fakeResponse("xsrfToken: 'T'");
+    const req = JSON.parse(new URLSearchParams(init.body).get('f.req'));
+    if (req['3']['13']) {
+      profileCalls++;
+      return fakeResponse('busy', { status: 429 });
+    }
+    return fakeResponse(JSON.stringify(req['3']['14'] ? { 1: [] } : { 1: blgRows() }));
+  });
+  const res = await search({ domain: 'babylovegrowth.ai' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.equal(profileCalls, 1);
+  assert.match(res.message, /Advertiser check stopped/);
+  assert.ok(res.advertisers.every((a) => a.note === ''));
+  assert.deepEqual(res.summary, { primary: 1, other: 2, sharedAccounts: 0 });
 });

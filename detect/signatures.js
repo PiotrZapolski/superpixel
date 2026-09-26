@@ -300,3 +300,28 @@ export const GLOBAL_ID_FORMATS = {
   hotjarId: /^\d{5,9}$/,
   adroll: /^[A-Z0-9]{20,26}$/i,
 };
+
+// Extra id patterns for Google Tag Manager containers (gtm.js) and Google tag loaders (gtag/js),
+// fetched by background/scan.js when a consent banner keeps the pixels from loading. They run on
+// the container text after unescapeContainer() (detect.js), so quotes are plain '"'.
+//   near  RegExp that must match within NEAR_WINDOW chars around the id match
+export const NEAR_WINDOW = 1500;
+
+export const CONTAINER_PATTERNS = [
+  // Meta Pixel community template: "vtp_pixelId":"1488345105464802"
+  { platform: 'Meta Pixel', re: /"vtp_pixelId"\s*:\s*"(\d{10,20})"/, idGroup: 1 },
+  // Google Ads conversion / remarketing tags: "vtp_conversionId":"16911376865"
+  { platform: 'Google Ads', re: /"vtp_conversionId"\s*:\s*"(\d{6,12})"/, idGroup: 1, fmt: (id) => 'AW-' + id },
+  // LinkedIn Insight built-in tag (__bzi) or template
+  { platform: 'LinkedIn Insight', re: /"vtp_partnerId"\s*:\s*"(\d{3,10})"/, idGroup: 1, near: /linkedin|licdn|__bzi/i },
+  // GA4 config / event tags
+  { platform: 'Google Analytics 4', re: /"vtp_measurementId(?:Override)?"\s*:\s*"(G-[A-Z0-9]{6,12})"/, idGroup: 1 },
+  { platform: 'Google Analytics 4', re: /\b(G-[A-Z0-9]{6,12})\b/, idGroup: 1 },
+  // TikTok custom HTML with a renamed queue: a.load("D451OCJC77U1GG09RADG")
+  { platform: 'TikTok Pixel', re: /\.load\(\s*["']([A-Z0-9]{15,25})["']\s*\)/, idGroup: 1, near: /ttq|tiktok/i },
+  // Microsoft UET custom HTML: ti:"187000123"
+  { platform: 'Microsoft UET', re: /\bti\s*:\s*["'](\d{4,12})["']/, idGroup: 1, near: /uetq|bat\.bing\.com/ },
+];
+
+/** Platforms a gtag.js loader can link to (its destinations). */
+export const GTAG_PLATFORMS = ['Google Ads', 'Google Analytics 4', 'Google Floodlight'];

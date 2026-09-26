@@ -2,6 +2,13 @@
 // libraries, BEFORE page scripts, so the app's own fetch/XHR references are the wrapped ones.
 // It only observes: the original response is always returned untouched, and every step is in
 // try/catch so the page can never break because of this script.
+//
+// Requests we do not care about must never run through our code: Chrome attributes errors to the
+// top script frame on the stack, so TikTok's own CSP violations and failed monitoring calls
+// (mon.tiktokv.com) showed up as Superpixel errors when XHR.prototype.send was wrapped. Hence:
+// - fetch: non-matching urls go straight to the original fetch as the first statement;
+// - XHR: only `open` is wrapped (to decide); a matching request gets a per-instance `send`,
+//   XMLHttpRequest.prototype.send is never replaced.
 (function () {
   'use strict';
   try {
@@ -13,9 +20,23 @@
 
   var MAX_BODY = 3 * 1024 * 1024;
   var MAX_REQ_BODY = 4096;
+  var SKIP_HOST_RE = /^(?:https?:)?\/\/mon[a-z0-9-]*\.tiktokv\.com(?:[:/?#]|$)/i;
 
   function matches(url) {
-    return typeof url === 'string' && (url.indexOf('/api/graphql/') !== -1 || url.indexOf('/api/v1/') !== -1);
+    if (typeof url !== 'string' || !url) return false;
+    if (SKIP_HOST_RE.test(url)) return false;
+    return url.indexOf('/api/graphql/') !== -1 || url.indexOf('/api/v1/') !== -1;
+  }
+
+  function fetchUrl(input) {
+    try {
+      if (typeof input === 'string') return input;
+      if (input && typeof input.url === 'string') return input.url;
+      if (input && typeof input.href === 'string') return input.href;
+    } catch (e) {
+      // ignore
+    }
+    return '';
   }
 
   function absolute(url) {
@@ -65,54 +86,53 @@
   try {
     var origFetch = window.fetch;
     if (typeof origFetch === 'function') {
-      var wrappedFetch = function (input, init) {
-        var url = '';
-        var reqBodyPromise = null;
+      var requestBody = function (input, init) {
         try {
-          url = typeof input === 'string' ? input : input && input.url ? input.url : String(input);
-          if (matches(url)) {
-            if (init && init.body != null) {
-              reqBodyPromise = Promise.resolve(bodyToString(init.body));
-            } else if (typeof Request !== 'undefined' && input instanceof Request && !input.bodyUsed) {
-              // Clone BEFORE the original fetch consumes the body.
-              reqBodyPromise = input
-                .clone()
-                .text()
-                .then(function (t) {
-                  return t.slice(0, MAX_REQ_BODY);
-                })
-                .catch(function () {
-                  return '';
-                });
-            } else {
-              reqBodyPromise = Promise.resolve('');
-            }
+          if (init && init.body != null) return Promise.resolve(bodyToString(init.body));
+          if (typeof Request !== 'undefined' && input instanceof Request && !input.bodyUsed) {
+            // Clone BEFORE the original fetch consumes the body.
+            return input
+              .clone()
+              .text()
+              .then(function (t) {
+                return t.slice(0, MAX_REQ_BODY);
+              })
+              .catch(function () {
+                return '';
+              });
           }
         } catch (e) {
-          reqBodyPromise = null;
+          // ignore
         }
+        return Promise.resolve('');
+      };
+      var observeFetch = function (url, reqBodyPromise, p) {
+        try {
+          p.then(
+            function (res) {
+              try {
+                var clone = res.clone();
+                Promise.all([clone.text(), reqBodyPromise])
+                  .then(function (vals) {
+                    post(url, res.status, vals[0], vals[1]);
+                  })
+                  .catch(function () {});
+              } catch (e) {
+                // ignore
+              }
+            },
+            function () {}
+          );
+        } catch (e) {
+          // ignore
+        }
+      };
+      var wrappedFetch = function (input, init) {
+        if (!matches(fetchUrl(input))) return origFetch.apply(this, arguments);
+        var url = fetchUrl(input);
+        var reqBodyPromise = requestBody(input, init);
         var p = origFetch.apply(this, arguments);
-        if (reqBodyPromise) {
-          try {
-            p.then(
-              function (res) {
-                try {
-                  var clone = res.clone();
-                  Promise.all([clone.text(), reqBodyPromise])
-                    .then(function (vals) {
-                      post(url, res.status, vals[0], vals[1]);
-                    })
-                    .catch(function () {});
-                } catch (e) {
-                  // ignore
-                }
-              },
-              function () {}
-            );
-          } catch (e) {
-            // ignore
-          }
-        }
+        observeFetch(url, reqBodyPromise, p);
         return p;
       };
       window.fetch = wrappedFetch;
@@ -121,44 +141,51 @@
     // ignore
   }
 
-  // XMLHttpRequest
+  // XMLHttpRequest: wrap open only; matching requests get a per-instance send.
   try {
     var XHR = window.XMLHttpRequest;
     if (XHR && XHR.prototype) {
       var origOpen = XHR.prototype.open;
-      var origSend = XHR.prototype.send;
-      XHR.prototype.open = function (method, url) {
+      var protoSend = XHR.prototype.send;
+      var instanceSend = function (body) {
         try {
-          this.__superpixelUrl = typeof url === 'string' ? url : url && url.href ? url.href : String(url);
+          if (this.__superpixelUrl) this.__superpixelReqBody = bodyToString(body);
         } catch (e) {
           // ignore
         }
-        return origOpen.apply(this, arguments);
+        return protoSend.apply(this, arguments);
       };
-      XHR.prototype.send = function (body) {
+      var onLoad = function () {
         try {
           var xhr = this;
-          if (matches(xhr.__superpixelUrl)) {
-            xhr.__superpixelReqBody = bodyToString(body);
-            if (!xhr.__superpixelListening) {
-              xhr.__superpixelListening = true;
-              xhr.addEventListener('load', function () {
-                try {
-                  var url = xhr.__superpixelUrl;
-                  if (!matches(url)) return;
-                  var rt = xhr.responseType;
-                  if (rt !== '' && rt !== 'text') return;
-                  post(xhr.responseURL || url, xhr.status, xhr.responseText, xhr.__superpixelReqBody || '');
-                } catch (e) {
-                  // ignore
-                }
-              });
+          var url = xhr.__superpixelUrl;
+          if (!url) return;
+          var rt = xhr.responseType;
+          if (rt !== '' && rt !== 'text') return;
+          post(xhr.responseURL || url, xhr.status, xhr.responseText, xhr.__superpixelReqBody || '');
+        } catch (e) {
+          // ignore
+        }
+      };
+      XHR.prototype.open = function (method, url) {
+        try {
+          var u = typeof url === 'string' ? url : url && typeof url.href === 'string' ? url.href : '';
+          if (matches(u)) {
+            this.__superpixelUrl = u;
+            if (this.send !== instanceSend) this.send = instanceSend;
+            if (!this.__superpixelListening) {
+              this.__superpixelListening = true;
+              this.addEventListener('load', onLoad);
             }
+          } else if (this.__superpixelUrl) {
+            // Re-opened for another url: fall back to the untouched prototype send.
+            this.__superpixelUrl = '';
+            if (Object.prototype.hasOwnProperty.call(this, 'send')) delete this.send;
           }
         } catch (e) {
           // ignore
         }
-        return origSend.apply(this, arguments);
+        return origOpen.apply(this, arguments);
       };
     }
   } catch (e) {

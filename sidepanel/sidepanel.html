@@ -9,17 +9,38 @@
 <body>
 
 <header class="topbar">
-  <div class="app-title"><img src="../icons/icon32.png" width="20" height="20" alt=""><span>Superpixel</span></div>
-  <div class="input-row">
-    <input id="domain-input" type="text" placeholder="example.com" autocomplete="off" spellcheck="false" aria-label="Domain to scan">
-    <button id="scan-btn" type="button">Scan</button>
-    <button id="current-tab-btn" type="button">Current tab</button>
-    <button id="stop-btn" type="button" hidden>Stop</button>
+  <div class="topbar-row">
+    <div class="brand">
+      <img src="../icons/icon32.png" width="20" height="20" alt="">
+      <span class="brand-name">Superpixel</span>
+    </div>
     <button id="settings-btn" type="button" class="icon-btn" title="Settings" aria-label="Open settings">&#9881;</button>
   </div>
+
+  <div class="search-row">
+    <div class="search-field">
+      <input id="domain-input" type="text" placeholder="example.com" autocomplete="off" spellcheck="false" aria-label="Domain to scan">
+      <button id="current-tab-btn" type="button" class="tab-btn" title="Use current tab">This tab</button>
+    </div>
+    <button id="scan-btn" type="button" class="primary-btn">Scan</button>
+    <button id="stop-btn" type="button" class="stop-btn" hidden>Stop</button>
+  </div>
+
   <p id="phase-text" class="phase-text" aria-live="polite"></p>
   <p id="error-text" class="error-text" role="alert" hidden></p>
 </header>
+
+<div id="summary-strip" class="summary-strip" hidden>
+  <div class="summary-main">
+    <span id="summary-domain" class="summary-domain"></span>
+    <span id="summary-stats" class="summary-stats"></span>
+  </div>
+  <div class="summary-side">
+    <span id="summary-time" class="summary-time"></span>
+    <span id="cached-chip" class="cached-chip" hidden>Cached</span>
+    <button id="rescan-btn" type="button" class="link-btn" hidden>Rescan</button>
+  </div>
+</div>
 
 <div id="settings-backdrop" class="settings-backdrop" hidden></div>
 
@@ -96,6 +117,13 @@
     <p id="debug-log-status" class="settings-status" aria-live="polite"></p>
   </fieldset>
 
+  <fieldset class="settings-group">
+    <legend>Data</legend>
+    <div class="drawer-actions">
+      <button id="export-json-btn" type="button" class="secondary" disabled>Export last scan as JSON</button>
+    </div>
+  </fieldset>
+
   <div class="drawer-actions">
     <button id="settings-save-btn" type="button">Save settings</button>
     <button id="clear-cache-btn" type="button" class="secondary">Clear cache</button>
@@ -104,35 +132,32 @@
 </aside>
 
 <main>
-  <section id="tags-section" class="panel">
-    <h2>On-site tags</h2>
-    <div id="tags-groups"></div>
-    <div id="brand-signals" class="brand-signals"></div>
-  </section>
-
   <section id="platforms-section" class="panel">
     <div class="section-header-row">
       <h2>Ad libraries</h2>
-      <label class="toggle-label">
-        <input id="only-confirmed-toggle" type="checkbox">
-        Only confirmed
+      <label class="switch-row">
+        <span class="switch-label">Only confirmed</span>
+        <span class="switch">
+          <input id="only-confirmed-toggle" type="checkbox">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </span>
       </label>
     </div>
     <div id="platform-cards"></div>
-    <div id="more-libraries" class="more-libraries"></div>
+    <div id="manual-rows" class="manual-rows"></div>
   </section>
-</main>
 
-<footer class="footer">
-  <div class="footer-row">
-    <button id="export-json-btn" type="button" disabled>Export JSON</button>
-    <button id="export-csv-btn" type="button" disabled>Export CSV</button>
-  </div>
-  <div class="footer-row footer-meta">
-    <span id="last-scan-note" class="last-scan-note"></span>
-    <button id="rescan-btn" type="button" class="secondary" hidden>Rescan</button>
-  </div>
-</footer>
+  <details id="tags-section" class="panel tags-panel">
+    <summary id="tags-summary" class="tags-summary">
+      <span class="tags-chevron">&#8250;</span>
+      <span id="tags-summary-text">Tracking on the site (0)</span>
+    </summary>
+    <div class="tags-body">
+      <div id="tags-groups"></div>
+      <div id="brand-signals" class="brand-signals"></div>
+    </div>
+  </details>
+</main>
 
 <script type="module" src="sidepanel.js"></script>
 </body>

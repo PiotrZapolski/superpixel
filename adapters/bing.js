@@ -266,15 +266,26 @@ export async function search(seeds, ctx) {
       }
     }
 
-    const kept = filterBingAds(collected, advList.map((a) => a.id));
-    if (rateLimited) return finish('rate_limited', kept.length ? `Microsoft Ad Library rate limit hit, showing partial results (${kept.length} ads)` : 'Microsoft Ad Library is rate limiting requests, try again later');
-    if (kept.length) {
-      const confirmed = kept.filter((a) => a.match === 'confirmed').length;
-      return finish('ok', confirmed ? `${kept.length} ads, ${confirmed} pointing to ${domain}` : `No ad points to ${domain}; showing top advertisers named ${queries.map((q) => `"${q}"`).join(' / ')}`);
+    // Name search alone is noise (live 2026-09-26: "BLG" matched "BLG srl" and a car dealer):
+    // without an ad pointing to the domain, show nothing rather than unrelated advertisers.
+    const confirmed = collected.filter((a) => a.match === 'confirmed').length;
+    const noMatch = () => {
+      collected = [];
+      advList = [];
+    };
+    if (rateLimited) {
+      if (!confirmed) noMatch();
+      const kept = filterBingAds(collected, advList.map((a) => a.id));
+      return finish('rate_limited', kept.length ? `Microsoft Ad Library rate limit hit, showing partial results (${kept.length} ads)` : 'Microsoft Ad Library is rate limiting requests, try again later');
+    }
+    if (confirmed) {
+      const kept = filterBingAds(collected, advList.map((a) => a.id));
+      return finish('ok', `${kept.length} ads, ${confirmed} pointing to ${domain}`);
     }
     if (changed) return finish('changed', 'Microsoft Ad Library changed its response format');
-    if (error) return finish('error', `Microsoft Ad Library returned ${error}`);
-    return finish('empty', 'No EU/EEA-served Microsoft ads found');
+    if (error && !collected.length) return finish('error', `Microsoft Ad Library returned ${error}`);
+    noMatch();
+    return finish('empty', `No Bing ads point to ${domain} (searched: ${queries.join(', ')})`);
   } catch (err) {
     if (ctx && ctx.signal && ctx.signal.aborted) return finish('error', 'Stopped');
     return finish('error', `Microsoft Ad Library search failed: ${(err && err.message) || err}`);

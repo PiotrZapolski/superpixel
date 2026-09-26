@@ -97,13 +97,15 @@ separates **pure parse functions** (exported, no `chrome.*`, testable in Node) f
  *   detailUrl:string, placements:string[], match:'confirmed'|'advertiser'|'keyword'|'name',
  *   source:'native'|'searchapi'}} Ad */
 /** @typedef {{platform:string, id:string, name:string, url:string, country:string,
- *   adCount:number, confirmedCount:number, totalAds:string|null}} Advertiser */
+ *   adCount:number, confirmedCount:number, totalAds:string|null, role:'primary'|'other',
+ *   domains:number|null, note:string}} Advertiser */
 /** @typedef {{platform:string, label:string, coverage:string,
  *   status:'ok'|'empty'|'error'|'rate_limited'|'needs_user'|'changed'|'skipped',
  *   message:string, advertisers:Advertiser[], ads:Ad[], deepLinks:{label:string,url:string}[],
  *   stats:{requests:number, ms:number}}} PlatformResult */
 /** @typedef {{platform:string, category:'ads'|'analytics'|'tag-manager'|'crm',
- *   ids:string[], evidence:string[]}} TagHit */
+ *   ids:string[], evidence:string[], source:'page'|'container'}} TagHit */
+// PlatformResult may carry summary:{primary, other, sharedAccounts} (google).
 ```
 
 Dates are ISO `YYYY-MM-DD` strings. `match` meaning:
@@ -150,6 +152,11 @@ is `changed` with message "<Platform> changed its response format" (never silent
   sends `window.postMessage({__superpixel:true, url, status, body:text}, '*')` after the
   response loads. Request body is included for graphql (`reqBody`, truncated 4KB) so the
   friendly name can be read. Must not change page behaviour (always return original response).
+  Update 2026-09-26: Chrome attributed TikTok's own CSP errors (mon.tiktokv.com) to the hook
+  because every XHR ran through a wrapped `XMLHttpRequest.prototype.send`. Now only `open` is
+  wrapped; a matching request gets a per-instance `send`, the prototype `send` is never replaced.
+  The fetch wrapper's first statement returns `origFetch.apply(this, arguments)` for
+  non-matching URLs. `mon*.tiktokv.com` is skipped entirely.
 - `content/relay.js` (ISOLATED): listens to those postMessages (check `event.source===window`
   and `__superpixel`), forwards `chrome.runtime.sendMessage({type:'capture', url, status, body})`.
   On `DOMContentLoaded` (and again 1.5s later) on facebook.com it forwards every
@@ -210,6 +217,23 @@ Minimum signature set (ID regexes in parentheses):
 - Klaviyo: `static\.klaviyo\.com/onsite/js/klaviyo\.js\?company_id=([A-Za-z0-9]{6})`.
 IDs are deduped per platform; `evidence` holds up to 3 short strings (matched url host+path, or
 "inline script", or "window.<global>").
+
+Update 2026-09-26 (live, babylovegrowth.ai):
+- Presence-only hits (no id) need real evidence: a loaded resource URL or a window global that is
+  a function/object (the probe records `present[x]` only for those). A string mention in the html
+  (a consent banner's vendor list) without an id is dropped.
+- GTM containers: behind a consent banner no pixel loads, only GTM. After detectTags, for each
+  GTM id (max 3) the SW fetches `https://www.googletagmanager.com/gtm.js?id=<id>` (plain fetch,
+  `credentials:'omit'`, 15s timeout; page CSP blocks it from the page) and for each Google tag
+  loader found (`googletagmanager.com/gtag/js?id=G-|AW-|DC-`, max 3) `gtag/js?id=<id>`.
+  `unescapeContainer` turns `\"`, `\\\"`, backslash-u003C, `\/` back into plain characters, then
+  `detectTagsInContainer(js, {evidence, platforms})` runs the id-bearing SIGNATURES patterns
+  (presence-only and context patterns are skipped: the runtime code mentions vendor hosts) plus
+  `CONTAINER_PATTERNS` (`"vtp_pixelId"` Meta, `"vtp_conversionId"` Google Ads, `"vtp_partnerId"`
+  near linkedin, `"vtp_measurementId(Override)"` and bare G- GA4, `<x>.load("<ttq id>")` near
+  ttq, UET `ti:"<id>"` near uetq). gtag.js is limited to Google Ads / GA4 / Floodlight.
+  `mergeTags` adds new ids and platforms with evidence `GTM container GTM-XXXX` (or
+  `Google tag G-XXXX`). TagHit `source` is 'page', or 'container' when only the container shows it.
 
 `extractSeeds({domain, html, title, meta})` -> Seeds:
 - `brandCandidates` (ordered, deduped, case-insensitive): JSON-LD Organization/WebSite `name`,
@@ -291,7 +315,15 @@ linkedin 2500ms, bing 1500ms (it answers 429 with an HTML body after ~5 quick ca
    Missing field `1` array on page 1 with HTTP 200 -> `empty` only if body is exactly `{}` after
    a well-formed request AND the xsrf token was present; otherwise `changed`. HTTP 400 -> `changed`.
 5. Advertisers aggregated from rows (id `AR...`, url `https://adstransparency.google.com/advertiser/<AR>?region=anywhere`), `totalAds` = response fields `4`-`5` as "1000-2000" style range on the domain level (put in result `message`).
-6. deepLinks: domain search url, `&platform=YOUTUBE` variant.
+6. Shared / agency accounts (update 2026-09-26): babylovegrowth.ai has BLG INC (116 ads) plus 13
+   one-ad advertisers, e.g. a Vietnamese company with 28 ads across many unrelated sites (rented
+   or agency accounts, brand bidders). For each 'other' advertiser (max 10, throttled, one request
+   each, stop at the first 429/captcha) SearchCreatives by advertiser id
+   `{"2":40,"3":{"13":{"1":["AR..."]}},"7":{"1":1,"2":24,"3":2616}}` and count distinct row-14
+   domains. Advertiser `totalAds` (exact when one page holds all, else the range), `domains`, `note`
+   (`Shared account: ads for <N> different sites` when N >= 3, `Only advertises this domain`
+   when every row points to it). Result `summary` = `{primary, other, sharedAccounts}`.
+7. deepLinks: domain search url, `&platform=YOUTUBE` variant.
 
 ### 4.2 meta.js
 
@@ -361,6 +393,12 @@ Coverage label: "EU/EEA, UK, CH only".
    `https://www.linkedin.com/company/<id>` and library link `.../ad-library/search?companyIds=<id>`;
    their other ads -> `advertiser`. Ads from advertisers with no confirmed ad keep `name` match.
 6. HTTP 429 -> backoff, then `rate_limited`. Auth wall (response URL contains `authwall` or `/login`) -> `needs_user`.
+7. Thought-leader ads (update 2026-09-26): an employee's post promoted by the company shows the
+   person, their headline and "Promoted by <Company>" (localised, e.g. "Promowane przez"). Cards
+   keep `headerLines`; `attributePromotedCards(cards, [brand, ...advertiserNames])` sets
+   `promotedBy` = company when a header line after the first ends with another card's advertiser
+   name or a seed name (language independent). The ad goes to the company (company id from
+   detail pages of the same name) with title `Employee post: <Person>[ - <headline>]`.
 
 ### 4.5 bing.js
 
@@ -371,7 +409,9 @@ Coverage "EU/EEA-served ads".
    landingUrl DestinationUrl, detailUrl `https://adlibrary.ads.microsoft.com/ad-details?adId=<id>`,
    format from AssetJson presence (`text` default).
 4. Match confirmed if landing or display host matches. Advertisers with zero confirmed ads are dropped
-   (their ads too) unless no advertiser has any confirmed ad (then keep top 2 as `name`).
+   (their ads too). Update 2026-09-26: when no ad points to the domain the result is `empty`
+   with message `No Bing ads point to <domain> (searched: <names>)` and no advertisers/ads (name
+   search alone returned unrelated advertisers such as "BLG srl").
 5. Advertiser url `https://adlibrary.ads.microsoft.com/?advertiserId=<id>` (best effort).
 
 ### 4.6 snap.js
@@ -395,6 +435,16 @@ by default. Key stored in chrome.storage.local, never logged.
 Shown as a "More libraries" row: Pinterest `https://ads.pinterest.com/ads-repository/`,
 X `https://ads.x.com/ads-repository`, Apple `https://adrepository.apple.com/`,
 Snap political `https://www.snap.com/political-ads`, Amazon (no public UI, omit).
+
+Update 2026-09-26 (verified): X Ads Repository has no queryable endpoint (pick a country, X builds
+a CSV report per handle asynchronously). Pinterest's
+`api.pinterest.com/ads/v4/ads_repository/ad_library?start_date=YYYY-MM-DD&country=DE` returns
+`{status, code, message, endpoint_name, data:{pin_ids, pin_ids_with_metadata:[{pin_id, ad_details}]}, bookmark}`
+but ignores advertiser_name / query filters, so it cannot search by brand. Apple's repository is
+App Store apps only. No fake searches: `adapters/manual.js` `manualLibraries(seeds)` returns
+`[{id, label, coverage, handle?, url, hint}]` for x (handle from `seeds.social.x`), pinterest
+(hint `Filter by advertiser name <brand>`) and apple. scan.js emits `{type:'manual', libraries}`
+once after the `tags` message and stores it as `lastScan.manual`.
 
 ## 5. Side panel UI
 

@@ -1,7 +1,14 @@
 // Layer A: tag detection + brand/social seed extraction (spec 3.5).
 // Pure functions only (no chrome.*), so they run in Node tests too.
 
-import { SIGNATURES, CATEGORY_ORDER, GOOGLE_KEY_ROUTES, GLOBAL_ID_FORMATS } from './signatures.js';
+import {
+  SIGNATURES,
+  CATEGORY_ORDER,
+  GOOGLE_KEY_ROUTES,
+  GLOBAL_ID_FORMATS,
+  CONTAINER_PATTERNS,
+  NEAR_WINDOW,
+} from './signatures.js';
 import { normalizeDomain, domainLabel } from '../lib/domain.js';
 import { decodeEntities, attrValues, extractHrefs } from '../lib/html.js';
 
@@ -67,10 +74,10 @@ function collectUrls(resourceUrls, html) {
   return out;
 }
 
-function getHit(hits, sig) {
+function getHit(hits, sig, source = 'page') {
   let h = hits.get(sig.platform);
   if (!h) {
-    h = { platform: sig.platform, category: sig.category, ids: [], evidence: [] };
+    h = { platform: sig.platform, category: sig.category, ids: [], evidence: [], source };
     hits.set(sig.platform, h);
   }
   return h;
@@ -86,7 +93,7 @@ function addEvidence(hit, ev) {
   if (ev && hit.evidence.length < MAX_EVIDENCE && !hit.evidence.includes(ev)) hit.evidence.push(ev);
 }
 
-function applyPattern(hits, sig, p, text, evidence) {
+function applyPattern(hits, sig, p, text, evidence, source = 'page') {
   const g = globalRe(p.re);
   let m;
   let matched = false;
@@ -96,7 +103,7 @@ function applyPattern(hits, sig, p, text, evidence) {
       continue;
     }
     matched = true;
-    const hit = getHit(hits, sig);
+    const hit = getHit(hits, sig, source);
     if (p.idGroup !== undefined && m[p.idGroup]) {
       const raw = m[p.idGroup];
       addId(hit, p.fmt ? p.fmt(raw) : raw);
@@ -124,7 +131,7 @@ function asList(v) {
 
 /**
  * @param {{resourceUrls?:string[], html?:string, globals?:object}} input
- * @returns {{platform:string, category:string, ids:string[], evidence:string[]}[]}
+ * @returns {{platform:string, category:string, ids:string[], evidence:string[], source:'page'}[]}
  */
 export function detectTags({ resourceUrls = [], html = '', globals = {} } = {}) {
   const page = typeof html === 'string' ? html.slice(0, HTML_LIMIT) : '';
@@ -135,13 +142,16 @@ export function detectTags({ resourceUrls = [], html = '', globals = {} } = {}) 
   if (rest.trim()) blocks.push({ text: rest, isScript: false });
 
   const hits = new Map();
+  // Platforms backed by real evidence (a loaded resource url or a pixel-created window global).
+  // A presence-only match in html text (a consent banner's vendor list, a comment) is not.
+  const strong = new Set();
 
   for (const sig of SIGNATURES) {
     for (const p of sig.patterns) {
       if (p.where === 'url' || p.where === 'any') {
         for (const u of urls) {
           if (p.context && !p.context.test(u)) continue;
-          applyPattern(hits, sig, p, u, urlEvidence(u));
+          if (applyPattern(hits, sig, p, u, urlEvidence(u))) strong.add(sig.platform);
         }
       }
       if (p.where === 'html' || p.where === 'any') {
@@ -181,20 +191,174 @@ export function detectTags({ resourceUrls = [], html = '', globals = {} } = {}) 
   // Presence-only globals: only when nothing else found the platform.
   const present = g.present && typeof g.present === 'object' ? g.present : {};
   for (const sig of SIGNATURES) {
-    if (hits.has(sig.platform)) continue;
     const name = (sig.globals || []).find((n) => present[n]);
     if (!name) continue;
+    if (hits.has(sig.platform)) {
+      strong.add(sig.platform);
+      continue;
+    }
     const hit = getHit(hits, sig);
     addEvidence(hit, 'window.' + name);
+    strong.add(sig.platform);
   }
 
+  // Drop weak hits: no id and only string mentions in the html.
+  for (const [platform, hit] of hits) {
+    if (!hit.ids.length && !strong.has(platform)) hits.delete(platform);
+  }
+
+  return sortTags([...hits.values()]);
+}
+
+function sortTags(list) {
   const catIndex = (c) => {
     const i = CATEGORY_ORDER.indexOf(c);
     return i === -1 ? CATEGORY_ORDER.length : i;
   };
-  return [...hits.values()].sort(
+  return list.sort(
     (a, b) => catIndex(a.category) - catIndex(b.category) || a.platform.localeCompare(b.platform)
   );
+}
+
+// ------------------------------------------------------- GTM containers
+
+const CONTAINER_LIMIT = 3 * 1024 * 1024;
+const GTM_ID_RE = /^GTM-[A-Z0-9]{4,10}$/;
+const GTAG_LOADER_RE = /googletagmanager\.com\/gtag\/js\?(?:[^"'\s<>]*?[&;])?id=((?:G|AW|DC)-[A-Z0-9]{4,14})\b/g;
+
+/**
+ * gtm.js / gtag.js embed tag configs inside JS strings, so quotes arrive escaped once or twice
+ * (\" or \\\") and '<' '/' as backslash-u003C and \/. Turn them back into plain characters.
+ * @param {string} js
+ * @returns {string}
+ */
+export function unescapeContainer(js) {
+  if (typeof js !== 'string' || !js) return '';
+  return js
+    .slice(0, CONTAINER_LIMIT)
+    .replace(/\\+u([0-9a-fA-F]{4})/g, (m, hex) => {
+      const code = parseInt(hex, 16);
+      return code > 0 && code < 0x80 ? String.fromCharCode(code) : m;
+    })
+    .replace(/\\+(["'/])/g, '$1');
+}
+
+/** GTM container ids from detected tags (max `max`). */
+export function containerIds(tags, max = 3) {
+  const out = [];
+  for (const t of Array.isArray(tags) ? tags : []) {
+    if (!t || t.platform !== 'Google Tag Manager' || !Array.isArray(t.ids)) continue;
+    for (const id of t.ids) {
+      const v = String(id || '').trim();
+      if (GTM_ID_RE.test(v) && !out.includes(v) && out.length < max) out.push(v);
+    }
+  }
+  return out;
+}
+
+/** Ids of Google tag loaders (googletagmanager.com/gtag/js?id=G-...|AW-...|DC-...) (max `max`). */
+export function gtagLoaderIds({ resourceUrls = [], html = '' } = {}, max = 3) {
+  const out = [];
+  const scan = (s) => {
+    if (typeof s !== 'string' || !s) return;
+    const text = decodeEntities(s);
+    const g = new RegExp(GTAG_LOADER_RE.source, 'g');
+    let m;
+    while ((m = g.exec(text)) !== null) {
+      if (!out.includes(m[1]) && out.length < max) out.push(m[1]);
+    }
+  };
+  for (const u of Array.isArray(resourceUrls) ? resourceUrls : []) scan(u);
+  scan(typeof html === 'string' ? html.slice(0, HTML_LIMIT) : '');
+  return out;
+}
+
+function nearOk(text, index, length, near) {
+  if (!near) return true;
+  const from = Math.max(0, index - NEAR_WINDOW);
+  return near.test(text.slice(from, index + length + NEAR_WINDOW));
+}
+
+/**
+ * Tags configured inside a GTM container (gtm.js) or a Google tag loader (gtag.js). Only
+ * id-bearing matches count: the container runtime mentions many vendor hosts in its own code,
+ * so presence-only patterns would be noise.
+ * @param {string} js raw container script
+ * @param {{evidence?:string, platforms?:string[]}} [opts] evidence label ('GTM container GTM-XXXX'),
+ *   optional platform allow-list (gtag.js: Google platforms only)
+ * @returns {{platform:string, category:string, ids:string[], evidence:string[], source:'container'}[]}
+ */
+export function detectTagsInContainer(js, { evidence = 'GTM container', platforms = null } = {}) {
+  const text = unescapeContainer(js);
+  if (!text) return [];
+  const allow = Array.isArray(platforms) && platforms.length ? new Set(platforms) : null;
+  const hits = new Map();
+
+  for (const sig of SIGNATURES) {
+    if (allow && !allow.has(sig.platform)) continue;
+    for (const p of sig.patterns) {
+      if (p.idGroup === undefined || p.context) continue;
+      applyPattern(hits, sig, p, text, evidence, 'container');
+    }
+  }
+
+  for (const cp of CONTAINER_PATTERNS) {
+    if (allow && !allow.has(cp.platform)) continue;
+    const sig = SIGNATURES.find((s) => s.platform === cp.platform);
+    if (!sig) continue;
+    const g = globalRe(cp.re);
+    let m;
+    while ((m = g.exec(text)) !== null) {
+      if (m[0] === '') {
+        g.lastIndex++;
+        continue;
+      }
+      const raw = m[cp.idGroup];
+      if (!raw || !nearOk(text, m.index, m[0].length, cp.near)) continue;
+      const hit = getHit(hits, sig, 'container');
+      addId(hit, cp.fmt ? cp.fmt(raw) : raw);
+      addEvidence(hit, evidence);
+    }
+  }
+
+  for (const [platform, hit] of hits) if (!hit.ids.length) hits.delete(platform);
+  return sortTags([...hits.values()]);
+}
+
+/**
+ * Merge container hits into page tags. New ids are appended; a platform the page did not show
+ * gets source 'container'. Returns a new array (inputs are not mutated).
+ * @param {object[]} pageTags
+ * @param {object[]} containerTags
+ */
+export function mergeTags(pageTags, containerTags) {
+  const out = new Map();
+  for (const t of Array.isArray(pageTags) ? pageTags : []) {
+    if (!t || !t.platform) continue;
+    out.set(t.platform, { ...t, ids: [...(t.ids || [])], evidence: [...(t.evidence || [])], source: t.source || 'page' });
+  }
+  for (const c of Array.isArray(containerTags) ? containerTags : []) {
+    if (!c || !c.platform) continue;
+    const cur = out.get(c.platform);
+    if (!cur) {
+      out.set(c.platform, { ...c, ids: [...(c.ids || [])], evidence: [...(c.evidence || [])], source: 'container' });
+      continue;
+    }
+    let added = false;
+    for (const id of c.ids || []) {
+      if (!cur.ids.includes(id)) {
+        cur.ids.push(id);
+        added = true;
+      }
+    }
+    if (!added) continue;
+    for (const ev of c.evidence || []) {
+      if (cur.evidence.includes(ev)) continue;
+      if (cur.evidence.length < MAX_EVIDENCE) cur.evidence.push(ev);
+      else cur.evidence[MAX_EVIDENCE - 1] = ev; // keep the container visible as a source
+    }
+  }
+  return sortTags([...out.values()]);
 }
 
 // ------------------------------------------------------------------ seeds

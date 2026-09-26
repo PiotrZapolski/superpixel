@@ -19,7 +19,7 @@ const CATEGORY_LABELS = {
 
 const STATUS_LABELS = {
   ok: 'OK',
-  empty: 'Empty',
+  empty: 'None',
   error: 'Error',
   rate_limited: 'Rate limited',
   needs_user: 'Needs you',
@@ -27,19 +27,6 @@ const STATUS_LABELS = {
   skipped: 'Skipped',
   running: 'Running',
 };
-
-const MORE_LIBRARIES = [
-  { label: 'Pinterest', url: 'https://ads.pinterest.com/ads-repository/' },
-  { label: 'X', url: 'https://ads.x.com/ads-repository' },
-  { label: 'Apple', url: 'https://adrepository.apple.com/' },
-  { label: 'Snap (political)', url: 'https://www.snap.com/political-ads' },
-];
-
-const CSV_COLUMNS = [
-  'platform', 'advertiser_id', 'advertiser_name', 'advertiser_role', 'ad_id', 'match', 'format', 'title', 'text',
-  'landing_url', 'display_url', 'first_shown', 'last_shown', 'is_active', 'placements',
-  'detail_url', 'source',
-];
 
 // ---- state ----
 
@@ -49,7 +36,8 @@ let currentScan = null; // scan being built up from live events
 let lastData = null; // last completed / stored scan, used for export and rendering
 let lastScanInput = null; // {mode:'domain', domain} | {mode:'tab', tabId}
 let onlyConfirmed = false;
-const cardEls = new Map(); // platform id -> card refs
+let manualLibraries = []; // [{id,label,coverage,handle,url,hint}]
+const platformEntries = new Map(); // platform id -> {slot, kind, refs, open, userToggled, result}
 
 // ---- DOM refs ----
 
@@ -60,6 +48,13 @@ const stopBtn = document.getElementById('stop-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const phaseTextEl = document.getElementById('phase-text');
 const errorTextEl = document.getElementById('error-text');
+
+const summaryStripEl = document.getElementById('summary-strip');
+const summaryDomainEl = document.getElementById('summary-domain');
+const summaryStatsEl = document.getElementById('summary-stats');
+const summaryTimeEl = document.getElementById('summary-time');
+const cachedChipEl = document.getElementById('cached-chip');
+const rescanBtn = document.getElementById('rescan-btn');
 
 const settingsBackdrop = document.getElementById('settings-backdrop');
 const settingsDrawerEl = document.getElementById('settings-drawer');
@@ -73,18 +68,16 @@ const clearLogBtn = document.getElementById('clear-log-btn');
 const showLogToggle = document.getElementById('show-log-toggle');
 const debugLogViewEl = document.getElementById('debug-log-view');
 const debugLogStatusEl = document.getElementById('debug-log-status');
+const exportJsonBtn = document.getElementById('export-json-btn');
 
+const tagsSectionEl = document.getElementById('tags-section');
+const tagsSummaryTextEl = document.getElementById('tags-summary-text');
 const tagsGroupsEl = document.getElementById('tags-groups');
 const brandSignalsEl = document.getElementById('brand-signals');
 
 const onlyConfirmedToggle = document.getElementById('only-confirmed-toggle');
 const platformCardsEl = document.getElementById('platform-cards');
-const moreLibrariesEl = document.getElementById('more-libraries');
-
-const exportJsonBtn = document.getElementById('export-json-btn');
-const exportCsvBtn = document.getElementById('export-csv-btn');
-const lastScanNoteEl = document.getElementById('last-scan-note');
-const rescanBtn = document.getElementById('rescan-btn');
+const manualRowsEl = document.getElementById('manual-rows');
 
 // ---- small DOM helpers ----
 
@@ -118,7 +111,7 @@ function safeLink(url, text, opts = {}) {
     return el('a', {
       text,
       className: opts.className,
-      attrs: { href: url, target: '_blank', rel: 'noopener noreferrer' },
+      attrs: { href: url, target: '_blank', rel: 'noopener noreferrer', title: opts.title },
     });
   }
   return el('span', { text, className: opts.className });
@@ -177,6 +170,9 @@ function handleMessage(msg) {
     case 'seeds':
       onSeeds(msg.seeds);
       break;
+    case 'manual':
+      onManual(msg.libraries);
+      break;
     case 'log':
       onLog(msg.entries);
       break;
@@ -209,10 +205,9 @@ function handleMessage(msg) {
 // ---- scan lifecycle ----
 
 function updateScanUi() {
-  scanBtn.disabled = scanning;
-  currentTabBtn.disabled = scanning;
+  scanBtn.hidden = scanning;
   stopBtn.hidden = !scanning;
-  rescanBtn.disabled = scanning;
+  currentTabBtn.disabled = scanning;
 }
 
 function showError(text) {
@@ -234,11 +229,16 @@ function beginScan(input, force) {
     tags: [],
     seeds: null,
     results: [],
+    manual: [],
   };
-  cardEls.clear();
+  platformEntries.clear();
   platformCardsEl.replaceChildren();
   tagsGroupsEl.replaceChildren();
   brandSignalsEl.replaceChildren();
+  manualLibraries = [];
+  manualRowsEl.replaceChildren();
+  updateTagsSummary([]);
+  summaryStripEl.hidden = true;
   send({ type: 'scan', input, force: !!force });
 }
 
@@ -263,34 +263,44 @@ function onSeeds(seeds) {
   renderBrandSignals(seeds);
 }
 
+function onManual(libraries) {
+  manualLibraries = Array.isArray(libraries) ? libraries : [];
+  if (currentScan) currentScan.manual = manualLibraries;
+  renderManualRows();
+}
+
 function onPlatformStart(id, label, coverage) {
-  const card = getOrCreateCard(id);
-  card.labelEl.textContent = label || id;
-  card.coverageEl.textContent = coverage || '';
-  setStatusChip(card.statusEl, 'running');
-  card.progressEl.textContent = '';
-  card.messageEl.textContent = '';
-  card.needsUserEl.replaceChildren();
-  card.deepLinksEl.replaceChildren();
-  card.bodyEl.replaceChildren();
-  card.result = null;
+  const entry = getOrCreateEntry(id);
+  if (entry.kind !== 'card') buildCardDom(entry, id);
+  const { refs } = entry;
+  refs.labelEl.textContent = label || id;
+  refs.coverageEl.textContent = coverage || '';
+  setStatusChip(refs.statusEl, 'running', 'Running');
+  refs.progressEl.textContent = '';
+  refs.messageEl.textContent = '';
+  refs.needsUserEl.replaceChildren();
+  refs.deepLinksEl.replaceChildren();
+  refs.summaryLineEl.textContent = '';
+  refs.bodyEl.replaceChildren();
+  entry.result = null;
 }
 
 function onProgress(id, text) {
-  const card = getOrCreateCard(id);
-  card.progressEl.textContent = text || '';
+  const entry = getOrCreateEntry(id);
+  if (entry.kind !== 'card') buildCardDom(entry, id);
+  entry.refs.progressEl.textContent = text || '';
 }
 
 function onPlatformResult(result) {
   if (!result || !result.platform) return;
   if (!currentScan) {
     // Results of a scan this panel did not start (reattached background scan).
-    currentScan = { domain: domainInput.value.trim(), at: new Date().toISOString(), tags: [], seeds: null, results: [], partial: true };
+    currentScan = { domain: domainInput.value.trim(), at: new Date().toISOString(), tags: [], seeds: null, results: [], manual: [], partial: true };
   }
   const idx = currentScan.results.findIndex((r) => r.platform === result.platform);
   if (idx >= 0) currentScan.results[idx] = result;
   else currentScan.results.push(result);
-  renderPlatformCard(result);
+  renderPlatformResult(result);
 }
 
 function formatSummary(summary) {
@@ -329,34 +339,48 @@ function onLast(data) {
   currentScan = null;
   lastScanInput = { mode: 'domain', domain: data.domain };
   domainInput.value = data.domain || '';
-  cardEls.clear();
+  platformEntries.clear();
   platformCardsEl.replaceChildren();
   renderTags(data.tags, data.seeds);
+  manualLibraries = Array.isArray(data.manual) ? data.manual : [];
+  renderManualRows();
   for (const result of data.results || []) {
-    renderPlatformCard(result);
+    renderPlatformResult(result);
   }
   afterDataReady(true);
 }
 
 function afterDataReady(cached) {
-  updateLastScanNote(lastData.at, cached);
-  rescanBtn.hidden = false;
+  updateSummaryStrip(lastData, cached);
   exportJsonBtn.disabled = false;
-  exportCsvBtn.disabled = false;
 }
 
-function updateLastScanNote(atIso, cached) {
-  if (!atIso) {
-    lastScanNoteEl.textContent = '';
+function updateSummaryStrip(data, cached) {
+  if (!data) {
+    summaryStripEl.hidden = true;
     return;
   }
-  let when;
-  try {
-    when = new Date(atIso).toLocaleString();
-  } catch {
-    when = atIso;
+  const results = Array.isArray(data.results) ? data.results : [];
+  let confirmedTotal = 0;
+  let platformsWithAds = 0;
+  for (const r of results) {
+    const c = (Array.isArray(r.ads) ? r.ads : []).filter((a) => a && a.match === 'confirmed').length;
+    confirmedTotal += c;
+    if (c > 0) platformsWithAds++;
   }
-  lastScanNoteEl.textContent = (cached ? 'Cached scan from ' : 'Last scan ') + when;
+  summaryDomainEl.textContent = data.domain || '';
+  summaryStatsEl.textContent = confirmedTotal + (confirmedTotal === 1 ? ' confirmed ad' : ' confirmed ads') +
+    ' across ' + platformsWithAds + (platformsWithAds === 1 ? ' platform' : ' platforms');
+  let when = '';
+  try {
+    when = data.at ? new Date(data.at).toLocaleString() : '';
+  } catch {
+    when = data.at || '';
+  }
+  summaryTimeEl.textContent = when ? 'Scanned ' + when : '';
+  cachedChipEl.hidden = !cached;
+  rescanBtn.hidden = false;
+  summaryStripEl.hidden = false;
 }
 
 function onSettings(settings) {
@@ -365,7 +389,13 @@ function onSettings(settings) {
 
 // ---- tags / brand signals ----
 
+function updateTagsSummary(tags) {
+  const n = Array.isArray(tags) ? tags.length : 0;
+  tagsSummaryTextEl.textContent = 'Tracking on the site (' + n + ')';
+}
+
 function renderTags(tags, seeds) {
+  updateTagsSummary(tags);
   tagsGroupsEl.replaceChildren();
   if (!tags || tags.length === 0) {
     tagsGroupsEl.appendChild(el('p', { className: 'empty-note', text: 'No tags detected yet.' }));
@@ -394,6 +424,9 @@ function renderTagRow(hit) {
   const row = el('div', { className: 'tag-row' });
   const head = el('div', { className: 'tag-row-head' });
   head.appendChild(el('span', { text: hit.platform }));
+  if (hit.source === 'container') {
+    head.appendChild(el('span', { className: 'tag-source', text: 'from GTM container' }));
+  }
   if (hit.evidence && hit.evidence.length) {
     head.appendChild(el('span', {
       className: 'tag-evidence',
@@ -445,29 +478,79 @@ function renderBrandSignals(seeds) {
   brandSignalsEl.appendChild(wrap);
 }
 
-// ---- platform cards ----
+// ---- platform entries (card or one-line empty row) ----
 
-function setStatusChip(node, status) {
-  node.className = 'status-chip status-' + status;
-  node.textContent = STATUS_LABELS[status] || status;
+function getOrCreateEntry(id) {
+  let entry = platformEntries.get(id);
+  if (entry) return entry;
+
+  const slot = el('div', { attrs: { 'data-platform': id } });
+  entry = { slot, kind: null, refs: null, open: false, userToggled: false, result: null };
+  platformEntries.set(id, entry);
+
+  const idx = PLATFORM_ORDER.indexOf(id);
+  let inserted = false;
+  for (const child of platformCardsEl.children) {
+    const childIdx = PLATFORM_ORDER.indexOf(child.getAttribute('data-platform'));
+    if (idx >= 0 && (childIdx < 0 || childIdx > idx)) {
+      platformCardsEl.insertBefore(slot, child);
+      inserted = true;
+      break;
+    }
+  }
+  if (!inserted) platformCardsEl.appendChild(slot);
+
+  return entry;
 }
 
-function getOrCreateCard(id) {
-  let card = cardEls.get(id);
-  if (card) return card;
+function setStatusChip(node, status, text) {
+  node.className = 'status-chip status-' + status;
+  node.textContent = text !== undefined ? text : (STATUS_LABELS[status] || status);
+}
 
+function setEntryOpen(entry, open) {
+  entry.open = open;
+  if (!entry.refs) return;
+  entry.refs.root.classList.toggle('open', open);
+  entry.refs.headerEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function buildCardDom(entry, id) {
   const root = el('div', { className: 'platform-card', attrs: { 'data-platform': id } });
 
-  const header = el('div', { className: 'platform-card-header' });
-  const titleWrap = el('div', { className: 'platform-card-title' });
+  const headerEl = el('div', {
+    className: 'platform-card-header',
+    attrs: { role: 'button', tabindex: '0', 'aria-expanded': 'false' },
+  });
+  const titleRow = el('div', { className: 'platform-card-title-row' });
+  const chevronEl = el('span', { className: 'chevron', text: '›', attrs: { 'aria-hidden': 'true' } });
   const labelEl = el('span', { className: 'platform-label', text: id });
-  const coverageEl = el('span', { className: 'platform-coverage', text: '' });
-  titleWrap.appendChild(labelEl);
-  titleWrap.appendChild(coverageEl);
   const statusEl = el('span', { className: 'status-chip status-running', text: 'Waiting' });
-  header.appendChild(titleWrap);
-  header.appendChild(statusEl);
-  root.appendChild(header);
+  titleRow.appendChild(chevronEl);
+  titleRow.appendChild(labelEl);
+  titleRow.appendChild(statusEl);
+  headerEl.appendChild(titleRow);
+
+  const metaRow = el('div', { className: 'platform-card-meta-row' });
+  const coverageEl = el('span', { className: 'platform-coverage', text: '' });
+  const deepLinksEl = el('div', { className: 'platform-deeplinks' });
+  metaRow.appendChild(coverageEl);
+  metaRow.appendChild(deepLinksEl);
+  headerEl.appendChild(metaRow);
+
+  headerEl.addEventListener('click', () => {
+    entry.userToggled = true;
+    setEntryOpen(entry, !entry.open);
+  });
+  headerEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      entry.userToggled = true;
+      setEntryOpen(entry, !entry.open);
+    }
+  });
+
+  root.appendChild(headerEl);
 
   const progressEl = el('div', { className: 'platform-progress', text: '' });
   root.appendChild(progressEl);
@@ -478,61 +561,101 @@ function getOrCreateCard(id) {
   const needsUserEl = el('div', { className: 'platform-needs-user' });
   root.appendChild(needsUserEl);
 
-  const deepLinksEl = el('div', { className: 'platform-deeplinks' });
-  root.appendChild(deepLinksEl);
-
   const bodyEl = el('div', { className: 'platform-body' });
+  const summaryLineEl = el('p', { className: 'platform-summary-line', text: '' });
+  bodyEl.appendChild(summaryLineEl);
   root.appendChild(bodyEl);
 
-  card = { id, root, labelEl, coverageEl, statusEl, progressEl, messageEl, needsUserEl, deepLinksEl, bodyEl, result: null };
-  cardEls.set(id, card);
-
-  const idx = PLATFORM_ORDER.indexOf(id);
-  let inserted = false;
-  for (const child of platformCardsEl.children) {
-    const childIdx = PLATFORM_ORDER.indexOf(child.getAttribute('data-platform'));
-    if (idx >= 0 && (childIdx < 0 || childIdx > idx)) {
-      platformCardsEl.insertBefore(root, child);
-      inserted = true;
-      break;
-    }
-  }
-  if (!inserted) platformCardsEl.appendChild(root);
-
-  return card;
+  entry.kind = 'card';
+  entry.refs = { root, headerEl, chevronEl, labelEl, statusEl, coverageEl, deepLinksEl, progressEl, messageEl, needsUserEl, bodyEl, summaryLineEl };
+  entry.slot.replaceChildren(root);
+  setEntryOpen(entry, !!entry.open);
 }
 
-function renderPlatformCard(result) {
-  const card = getOrCreateCard(result.platform);
-  card.result = result;
-  card.labelEl.textContent = result.label || result.platform;
-  card.coverageEl.textContent = result.coverage || '';
-  card.progressEl.textContent = '';
-  setStatusChip(card.statusEl, result.status || 'ok');
-  card.messageEl.textContent = result.message || '';
+function buildEmptyDom(entry, id, label, coverage) {
+  const row = el('div', { className: 'platform-empty-row', attrs: { 'data-platform': id } });
+  const nameEl = el('span', { className: 'platform-empty-name', text: label || id });
+  const statusEl = el('span', { className: 'platform-empty-status', text: 'No ads' });
+  const coverageEl = el('span', { className: 'platform-empty-coverage', text: coverage || '' });
+  row.appendChild(nameEl);
+  row.appendChild(statusEl);
+  row.appendChild(coverageEl);
+  entry.kind = 'empty';
+  entry.refs = null;
+  entry.slot.replaceChildren(row);
+}
 
-  card.needsUserEl.replaceChildren();
+function isEmptyResult(result) {
+  if (result.status === 'empty') return true;
+  if (result.status !== 'ok') return false;
+  const hasAds = Array.isArray(result.ads) && result.ads.length > 0;
+  const hasAdvertisers = Array.isArray(result.advertisers) && result.advertisers.length > 0;
+  return !hasAds && !hasAdvertisers;
+}
+
+function renderPlatformResult(result) {
+  const entry = getOrCreateEntry(result.platform);
+  entry.result = result;
+
+  if (isEmptyResult(result)) {
+    buildEmptyDom(entry, result.platform, result.label, result.coverage);
+    return;
+  }
+
+  if (entry.kind !== 'card') buildCardDom(entry, result.platform);
+  const { refs } = entry;
+
+  refs.labelEl.textContent = result.label || result.platform;
+  refs.coverageEl.textContent = result.coverage || '';
+  refs.progressEl.textContent = '';
+  const confirmedCount = (Array.isArray(result.ads) ? result.ads : []).filter((a) => a && a.match === 'confirmed').length;
+  setStatusChip(refs.statusEl, result.status || 'ok', result.status === 'ok' ? (confirmedCount > 0 ? String(confirmedCount) : 'None') : undefined);
+  refs.messageEl.textContent = result.message || '';
+
+  refs.needsUserEl.replaceChildren();
   if (result.status === 'needs_user' && result.deepLinks && result.deepLinks[0]) {
     const dl = result.deepLinks[0];
     const wrap = el('div');
     wrap.appendChild(safeLink(dl.url, dl.label || 'Open', { className: 'btn-link' }));
-    card.needsUserEl.appendChild(wrap);
+    refs.needsUserEl.appendChild(wrap);
   }
 
-  card.deepLinksEl.replaceChildren();
+  refs.deepLinksEl.replaceChildren();
   if (result.deepLinks && result.deepLinks.length) {
-    const row = el('div', { className: 'deeplink-row' });
     for (const dl of result.deepLinks) {
-      row.appendChild(safeLink(dl.url, dl.label, { className: 'deeplink' }));
+      const link = safeLink(dl.url, '↗', { className: 'deeplink', title: dl.label });
+      if (link.tagName === 'A') {
+        link.setAttribute('aria-label', dl.label || 'Open library');
+        link.addEventListener('click', (e) => e.stopPropagation());
+      }
+      refs.deepLinksEl.appendChild(link);
     }
-    card.deepLinksEl.appendChild(row);
   }
 
-  renderPlatformBody(card, result);
+  if (!entry.userToggled) {
+    setEntryOpen(entry, confirmedCount > 0);
+  }
+
+  renderPlatformBody(entry, result);
 }
 
-function renderPlatformBody(card, result) {
-  card.bodyEl.replaceChildren();
+function renderPlatformBody(entry, result) {
+  const { refs } = entry;
+  refs.bodyEl.replaceChildren();
+
+  refs.summaryLineEl.textContent = '';
+  if (result.summary && typeof result.summary === 'object') {
+    const parts = [];
+    const primary = Number(result.summary.primary) || 0;
+    const other = Number(result.summary.other) || 0;
+    const shared = Number(result.summary.sharedAccounts) || 0;
+    parts.push(primary + (primary === 1 ? ' primary advertiser' : ' primary advertisers'));
+    if (other > 0) parts.push(other + (other === 1 ? ' other account' : ' other accounts'));
+    if (shared > 0) parts.push(shared + (shared === 1 ? ' shared account' : ' shared accounts'));
+    refs.summaryLineEl.textContent = parts.join(', ');
+    refs.bodyEl.appendChild(refs.summaryLineEl);
+  }
+
   const ads = result.ads || [];
   const advertisers = result.advertisers || [];
 
@@ -559,7 +682,7 @@ function renderPlatformBody(card, result) {
     if (adv.role === 'other') {
       otherBlocks.push(block);
     } else {
-      card.bodyEl.appendChild(block);
+      refs.bodyEl.appendChild(block);
     }
     anyRendered = true;
   }
@@ -568,13 +691,13 @@ function renderPlatformBody(card, result) {
     const group = el('details', { className: 'other-advertisers' });
     group.appendChild(el('summary', {
       className: 'other-advertisers-summary',
-      text: 'Other accounts running ads to this domain (' + otherBlocks.length + ')',
+      text: 'Other accounts (' + otherBlocks.length + ')',
     }));
-    group.appendChild(el('p', { className: 'other-advertisers-hint', text: 'Often affiliates, resellers or brand bidders' }));
+    group.appendChild(el('p', { className: 'other-advertisers-hint', text: 'Often affiliates, resellers or rented agency accounts' }));
     const list = el('div', { className: 'other-advertisers-list' });
     for (const block of otherBlocks) list.appendChild(block);
     group.appendChild(list);
-    card.bodyEl.appendChild(group);
+    refs.bodyEl.appendChild(group);
   }
 
   const otherAds = [];
@@ -587,13 +710,13 @@ function renderPlatformBody(card, result) {
     const visible = onlyConfirmed ? otherAds.filter((a) => a.match === 'confirmed') : otherAds;
     if (visible.length) {
       const pseudo = { id: '', name: 'Other ads', url: '', adCount: otherAds.length, confirmedCount, totalAds: null };
-      card.bodyEl.appendChild(renderAdvertiserBlock(pseudo, visible, confirmedCount));
+      refs.bodyEl.appendChild(renderAdvertiserBlock(pseudo, visible, confirmedCount));
       anyRendered = true;
     }
   }
 
   if (!anyRendered) {
-    card.bodyEl.appendChild(el('p', {
+    refs.bodyEl.appendChild(el('p', {
       className: 'empty-note',
       text: onlyConfirmed ? 'No confirmed ads.' : 'No ads found.',
     }));
@@ -621,6 +744,23 @@ function renderAdvertiserBlock(adv, ads, confirmedCount) {
   summary.appendChild(el('span', { className: 'advertiser-count', text: countText }));
 
   details.appendChild(summary);
+
+  const hasNote = typeof adv.note === 'string' && adv.note.trim().length > 0;
+  const hasDomains = Array.isArray(adv.domains) && adv.domains.length > 0;
+  if (hasNote || hasDomains) {
+    const extra = el('div', { className: 'advertiser-extra' });
+    if (hasNote) {
+      const isShared = /^shared account/i.test(adv.note.trim());
+      extra.appendChild(el('p', {
+        className: 'advertiser-note' + (isShared ? ' is-shared' : ''),
+        text: adv.note,
+      }));
+    }
+    if (hasDomains) {
+      extra.appendChild(el('p', { className: 'advertiser-domains', text: 'Also seen on: ' + adv.domains.join(', ') }));
+    }
+    details.appendChild(extra);
+  }
 
   const list = el('div', { className: 'ad-list' });
   for (const ad of ads) list.appendChild(renderAdRow(ad));
@@ -670,14 +810,27 @@ function renderAdRow(ad) {
   return row;
 }
 
-function renderMoreLibraries() {
-  moreLibrariesEl.replaceChildren();
-  moreLibrariesEl.appendChild(el('h3', { text: 'More libraries' }));
-  const row = el('div', { className: 'chip-row' });
-  for (const item of MORE_LIBRARIES) {
-    row.appendChild(safeLink(item.url, item.label, { className: 'chip chip-link' }));
+// ---- manual libraries ----
+
+function renderManualRows() {
+  manualRowsEl.replaceChildren();
+  for (const item of manualLibraries) {
+    if (!item || typeof item !== 'object') continue;
+    const row = el('div', { className: 'manual-row' });
+    const top = el('div', { className: 'manual-row-top' });
+    top.appendChild(el('span', { className: 'chip chip-manual', text: 'Manual' }));
+    top.appendChild(el('span', { className: 'manual-label', text: item.label || item.id || 'Library' }));
+    if (item.handle) top.appendChild(el('span', { className: 'manual-handle', text: item.handle }));
+    if (item.coverage) top.appendChild(el('span', { className: 'manual-coverage', text: item.coverage }));
+    row.appendChild(top);
+    if (item.hint) row.appendChild(el('p', { className: 'manual-hint', text: item.hint }));
+    if (isSafeHttpUrl(item.url)) {
+      const actions = el('div', { className: 'manual-row-actions' });
+      actions.appendChild(safeLink(item.url, 'Open', { className: 'btn-link' }));
+      row.appendChild(actions);
+    }
+    manualRowsEl.appendChild(row);
   }
-  moreLibrariesEl.appendChild(row);
 }
 
 // ---- settings drawer ----
@@ -834,48 +987,6 @@ function closeSettings() {
 
 // ---- export ----
 
-function csvField(value) {
-  if (value === null || value === undefined) return '';
-  const str = String(value);
-  if (/["\n\r,]/.test(str)) {
-    return '"' + str.replace(/"/g, '""') + '"';
-  }
-  return str;
-}
-
-function buildCsv(data) {
-  const rows = [CSV_COLUMNS.join(',')];
-  for (const result of data.results || []) {
-    const roles = new Map();
-    for (const adv of result.advertisers || []) {
-      if (adv && adv.id) roles.set(adv.id, adv.role || 'primary');
-    }
-    for (const ad of result.ads || []) {
-      const row = [
-        ad.platform || result.platform || '',
-        ad.advertiserId || '',
-        ad.advertiserName || '',
-        roles.get(ad.advertiserId) || '',
-        ad.id || '',
-        ad.match || '',
-        ad.format || '',
-        ad.title || '',
-        ad.text || '',
-        ad.landingUrl || '',
-        ad.displayUrl || '',
-        ad.firstShown || '',
-        ad.lastShown || '',
-        ad.isActive === null || ad.isActive === undefined ? '' : String(ad.isActive),
-        (ad.placements || []).join(';'),
-        ad.detailUrl || '',
-        ad.source || '',
-      ];
-      rows.push(row.map(csvField).join(','));
-    }
-  }
-  return rows.join('\r\n');
-}
-
 function exportFilename(data, ext) {
   const domain = (data.domain || 'domain').replace(/[^a-z0-9.-]+/gi, '-');
   let dateStr = 'unknown';
@@ -981,8 +1092,8 @@ showLogToggle.addEventListener('change', () => {
 
 onlyConfirmedToggle.addEventListener('change', () => {
   onlyConfirmed = onlyConfirmedToggle.checked;
-  for (const card of cardEls.values()) {
-    if (card.result) renderPlatformBody(card, card.result);
+  for (const entry of platformEntries.values()) {
+    if (entry.kind === 'card' && entry.result) renderPlatformBody(entry, entry.result);
   }
 });
 
@@ -992,17 +1103,10 @@ exportJsonBtn.addEventListener('click', () => {
   downloadBlob(blob, exportFilename(lastData, 'json'));
 });
 
-exportCsvBtn.addEventListener('click', () => {
-  if (!lastData) return;
-  const blob = new Blob([buildCsv(lastData)], { type: 'text/csv' });
-  downloadBlob(blob, exportFilename(lastData, 'csv'));
-});
-
 // ---- init ----
 
 function init() {
   renderTiktokRegionCheckboxes();
-  renderMoreLibraries();
   updateScanUi();
   send({ type: 'getLast' });
   send({ type: 'getSettings' });

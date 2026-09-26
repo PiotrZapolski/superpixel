@@ -48,7 +48,7 @@ direct deep link to each library instead of scraping it.
    parallel and streams results into the panel as they arrive.
 3. Use "Only confirmed" to hide everything except ads whose landing page actually points back to
    the scanned domain.
-4. Use "Export JSON" or "Export CSV" to save the full result for further analysis.
+4. Open Settings and use "Export last scan as JSON" to save the full result for further analysis.
 5. Results are cached locally; reopening the panel shows your last scan, and "Rescan" forces a
    fresh pull ignoring the cache.
 

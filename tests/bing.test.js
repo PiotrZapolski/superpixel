@@ -241,3 +241,47 @@ test('search() also searches advertisers by seeds.advertiserNames', async () => 
   assert.equal(res.advertisers[0].id, '2001');
   assert.ok(res.ads.every((a) => a.match === 'confirmed'));
 });
+
+// ---- live finding 2026-09-26: name search returns unrelated advertisers with 0 confirmed ads ----
+
+test('search() returns empty with no advertisers when no ad points to the domain', async () => {
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) {
+        return fakeResponse({ value: [
+          { AdvertiserId: 3001, AdvertiserName: 'GMC of Goshen BLGMCG - Bob Loquercio Auto Group', AdvertiserCountry: 'US' },
+          { AdvertiserId: 3002, AdvertiserName: 'BLG srl', AdvertiserCountry: 'IT' },
+        ] });
+      }
+      if (url.includes('advertiserId=3001')) return fakeResponse(adsPage(3001, 3, 3, { domain: 'goshengmc.com' }));
+      if (url.includes('advertiserId=3002')) return fakeResponse(adsPage(3002, 2, 2, { domain: 'blg.it', offset: 50 }));
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'BabyLoveGrowth', advertiserNames: ['BLG INC', 'BLG'] }, ctx);
+  assert.equal(res.status, 'empty');
+  assert.equal(res.message, 'No Bing ads point to babylovegrowth.ai (searched: BabyLoveGrowth, BLG INC, BLG)');
+  assert.deepEqual(res.ads, []);
+  assert.deepEqual(res.advertisers, []);
+});
+
+test('search() rate limited without confirmed ads shows no unrelated advertisers', async () => {
+  let n = 0;
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      n += 1;
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [{ AdvertiserId: 3002, AdvertiserName: 'BLG srl' }] });
+      if (url.includes('advertiserId=3002')) return fakeResponse(adsPage(3002, 2, 2, { domain: 'blg.it' }));
+      return fakeResponse('<html>Too Many Requests</html>', 429);
+    },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'BLG' }, ctx);
+  assert.ok(n > 0);
+  assert.equal(res.status, 'rate_limited');
+  assert.deepEqual(res.ads, []);
+  assert.deepEqual(res.advertisers, []);
+});
