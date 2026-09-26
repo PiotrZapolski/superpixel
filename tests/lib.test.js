@@ -73,9 +73,10 @@ test('registrableDomain and domainLabel handle multi-part suffixes', () => {
 test('hostMatches: subdomains, sibling TLDs, mismatches', () => {
   assert.equal(hostMatches('https://shop.decathlon.com/p/1', 'decathlon.com'), true);
   assert.equal(hostMatches('decathlon.com', 'decathlon.com'), true);
-  assert.equal(hostMatches('https://www.decathlon.fr/', 'decathlon.com'), true);
+  assert.equal(hostMatches('https://www.decathlon.fr/', 'decathlon.com', { siblingTlds: true }), true);
   assert.equal(hostMatches('https://www.decathlon.fr/', 'decathlon.com', { siblingTlds: false }), false);
-  assert.equal(hostMatches('https://decathlon.co.uk/x', 'decathlon.com'), true);
+  assert.equal(hostMatches('https://decathlon.co.uk/x', 'decathlon.com'), false);
+  assert.equal(hostMatches('https://outrank.ie/', 'outrank.so'), false);
   assert.equal(hostMatches('https://nike.com/', 'decathlon.com'), false);
   assert.equal(hostMatches('https://decathlon.com.evil.net/', 'decathlon.com', { siblingTlds: false }), false);
   assert.equal(hostMatches('', 'decathlon.com'), false);
