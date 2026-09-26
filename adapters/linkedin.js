@@ -6,7 +6,7 @@
 import { hostMatches, unwrapRedirect } from '../lib/domain.js';
 import { sleep, uniq } from '../lib/util.js';
 import { decodeEntities, attrValues, firstClassText } from '../lib/html.js';
-import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, nameQueries } from '../lib/model.js';
+import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, nameQueries, keepConfirmedAdvertisers } from '../lib/model.js';
 import { backoff } from '../background/queue.js';
 
 export const meta = { id: 'linkedin', label: 'LinkedIn', coverage: 'Global, last 12 months' };
@@ -384,7 +384,16 @@ export async function search(seeds, ctx) {
   let httpError = '';
   const progress = (t) => { try { ctx.progress && ctx.progress(t); } catch { /* ignore */ } };
 
-  const finish = (status, message) => {
+  // Employee posts ("Promoted by <Company>") join the confirmed advertiser of that company.
+  const adoptEmployeePost = (ad, confirmedByName) => {
+    const c = cards.get(ad.id);
+    if (!c || !c.promotedBy) return '';
+    return confirmedByName.get(String(c.promotedBy).trim().toLowerCase()) || '';
+  };
+
+  // Ads of advertisers with at least one ad pointing to the domain. A same-name company without
+  // such an ad (outrank.so vs "Outrank" of outrank.ie, 2026-09-26) is a different company.
+  const buildAds = () => {
     // Propagate company ids to cards of the same advertiser name that were not detailed.
     const nameToCompany = new Map();
     for (const [id, d] of details) {
@@ -404,7 +413,11 @@ export async function search(seeds, ctx) {
       return mapLinkedinAd(c, d, domain);
     });
     ads = dedupeAds(ads);
-    ads = promoteAdvertiserMatches(ads) || ads;
+    ads = keepConfirmedAdvertisers(ads, adoptEmployeePost);
+    return promoteAdvertiserMatches(ads) || ads;
+  };
+
+  const result = (status, message, ads) => {
     const advertisers = aggregateAdvertisers(ads, { platform: 'linkedin', urlFor: advertiserUrl });
     const extra = [];
     for (const a of ads) {
@@ -415,6 +428,7 @@ export async function search(seeds, ctx) {
     const allLinks = links.concat(extra.map(({ label, url }) => ({ label, url })));
     return makeResult(meta, { status, message, ads, advertisers, deepLinks: allLinks });
   };
+  const finish = (status, message) => result(status, message, buildAds());
 
   try {
     const brand = (seeds && seeds.brand) || '';
@@ -466,13 +480,15 @@ export async function search(seeds, ctx) {
     }
 
     const n = cards.size;
-    if (rateLimited) return finish('rate_limited', n ? `LinkedIn rate limit hit, showing partial results (${n} ads)` : 'LinkedIn is rate limiting requests, try again later');
-    if (authwall && !n) return finish('needs_user', 'LinkedIn asks for a sign-in, open the Ad Library link once');
-    if (n) return finish('ok', `${n} ads found, landing pages checked for ${details.size}`);
-    if (httpError && !anyResponse) return finish('error', `LinkedIn Ad Library returned ${httpError}`);
-    if (anyResponse && !anyRecognized) return finish('changed', 'LinkedIn changed its response format');
-    const searchedFor = owners.length ? owners.join(', ') : companyIds.map((id) => `company ${id}`).join(', ');
-    return finish('empty', `No LinkedIn ads found for ${searchedFor} (last 30 days)`);
+    const ads = buildAds();
+    const confirmed = ads.filter((a) => a.match === 'confirmed').length;
+    if (rateLimited) return result('rate_limited', ads.length ? `LinkedIn rate limit hit, showing partial results (${ads.length} ads)` : 'LinkedIn is rate limiting requests, try again later', ads);
+    if (authwall && !confirmed) return result('needs_user', 'LinkedIn asks for a sign-in, open the Ad Library link once', []);
+    if (confirmed) return result('ok', `${ads.length} ads, ${confirmed} pointing to ${domain} (landing pages checked for ${details.size} of ${n})`, ads);
+    if (httpError && !anyResponse) return result('error', `LinkedIn Ad Library returned ${httpError}`, []);
+    if (anyResponse && !anyRecognized) return result('changed', 'LinkedIn changed its response format', []);
+    const searched = owners.concat(companyIds.map((id) => `company ${id}`)).join(', ');
+    return result('empty', `No LinkedIn ads point to ${domain} (searched: ${searched})`, []);
   } catch (err) {
     if (ctx && ctx.signal && ctx.signal.aborted) return finish('error', 'Stopped');
     return finish('error', `LinkedIn search failed: ${(err && err.message) || err}`);

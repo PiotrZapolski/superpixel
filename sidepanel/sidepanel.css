@@ -721,13 +721,14 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
   height: 20px;
-  border-radius: 50%;
+  padding: 0 7px;
+  border-radius: 999px;
   background: var(--surface-2);
   color: var(--ink-muted);
   text-decoration: none;
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .deeplink:hover {
@@ -813,6 +814,20 @@ main {
   color: var(--ink-muted);
   font-size: 11.5px;
   margin: 0 0 8px;
+}
+
+/* More than 2 library links: plain list in the card body instead of header links. */
+.platform-library-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
+.platform-library-links-title {
+  color: var(--ink-muted);
+  font-size: 11.5px;
 }
 
 .platform-empty-row {
@@ -980,7 +995,7 @@ main {
 
 .badge-confirmed { background: var(--ok-bg); color: var(--ok); }
 .badge-advertiser { background: var(--run-bg); color: var(--run); }
-.badge-keyword { background: var(--empty-bg); color: var(--empty); }
+.badge-keyword { background: var(--warn-bg); color: var(--warn); }
 .badge-name { background: var(--empty-bg); color: var(--empty); }
 
 .ad-format {

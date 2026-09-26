@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { meta, buildSnapBody, parseSnapAds, EU_COUNTRIES, search } from '../adapters/snap.js';
+import { meta, buildSnapBody, parseSnapAds, EU_COUNTRIES, NAME_MATCH_NOTE, search } from '../adapters/snap.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const SNAP = JSON.parse(fixture('snap-search.json'));
@@ -80,6 +80,12 @@ test('search() posts the body and follows next_link once', async () => {
   const body = JSON.parse(calls[0].init.body);
   assert.equal(body.paying_advertiser_name, 'Decathlon');
   assert.equal(res.ads.length, 2);
+  // One ad links to the domain: not flagged unverified; the name-only advertiser gets the note.
+  assert.doesNotMatch(res.message, /unverified/);
+  const byName = Object.fromEntries(res.advertisers.map((a) => [a.name, a]));
+  assert.equal(byName['Decathlon SE'].note, '');
+  assert.equal(byName['Decathlon Retail'].note, NAME_MATCH_NOTE);
+  assert.notEqual(byName['Decathlon Retail'].role, 'mention');
 });
 
 test('search() maps HTTP errors without throwing', async () => {
@@ -117,6 +123,12 @@ test('search() also queries up to 2 advertiser names, sequentially and throttled
   assert.equal(res.status, 'ok');
   assert.equal(res.ads.length, 1);
   assert.equal(res.ads[0].match, 'name');
+  // Snapchat never exposes landing pages: name matches are kept but flagged.
+  assert.match(res.message, /unverified: Snapchat does not show landing pages$/);
+  assert.equal(NAME_MATCH_NOTE, 'Name match only, Snapchat does not expose landing pages');
+  assert.equal(res.advertisers.length, 1);
+  assert.equal(res.advertisers[0].note, NAME_MATCH_NOTE);
+  assert.equal(res.advertisers[0].role, 'primary');
 });
 
 test('search() reports empty with the searched names when nothing is found', async () => {

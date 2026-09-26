@@ -1,6 +1,16 @@
 // Superpixel side panel UI. Talks to the service worker over a long-lived port
 // named "superpixel". No frameworks, no innerHTML with remote data.
 
+import {
+  STATUS_LABELS,
+  MATCH_HINTS,
+  statusChipText,
+  matchLabel,
+  formatLabel,
+  placementsText,
+  headerDeepLinks,
+} from './view.js';
+
 const PLATFORM_ORDER = ['google', 'meta', 'tiktok', 'linkedin', 'bing', 'snap'];
 
 const REGION_CODES = [
@@ -15,17 +25,6 @@ const CATEGORY_LABELS = {
   analytics: 'Analytics',
   'tag-manager': 'Tag managers',
   crm: 'CRM / other',
-};
-
-const STATUS_LABELS = {
-  ok: 'OK',
-  empty: 'None',
-  error: 'Error',
-  rate_limited: 'Rate limited',
-  needs_user: 'Needs you',
-  changed: 'Changed',
-  skipped: 'Skipped',
-  running: 'Running',
 };
 
 // ---- state ----
@@ -609,7 +608,7 @@ function renderPlatformResult(result) {
   refs.coverageEl.textContent = result.coverage || '';
   refs.progressEl.textContent = '';
   const confirmedCount = (Array.isArray(result.ads) ? result.ads : []).filter((a) => a && a.match === 'confirmed').length;
-  setStatusChip(refs.statusEl, result.status || 'ok', result.status === 'ok' ? (confirmedCount > 0 ? String(confirmedCount) : 'None') : undefined);
+  setStatusChip(refs.statusEl, result.status || 'ok', statusChipText(result));
   refs.messageEl.textContent = result.message || '';
 
   refs.needsUserEl.replaceChildren();
@@ -620,16 +619,16 @@ function renderPlatformResult(result) {
     refs.needsUserEl.appendChild(wrap);
   }
 
+  // Up to 2 library links in the header with short text ("Library", "YouTube"); more go into a
+  // list in the card body (renderPlatformBody).
   refs.deepLinksEl.replaceChildren();
-  if (result.deepLinks && result.deepLinks.length) {
-    for (const dl of result.deepLinks) {
-      const link = safeLink(dl.url, '↗', { className: 'deeplink', title: dl.label });
-      if (link.tagName === 'A') {
-        link.setAttribute('aria-label', dl.label || 'Open library');
-        link.addEventListener('click', (e) => e.stopPropagation());
-      }
-      refs.deepLinksEl.appendChild(link);
+  for (const dl of headerDeepLinks(result.deepLinks) || []) {
+    const link = safeLink(dl.url, dl.short + ' ↗', { className: 'deeplink', title: dl.label });
+    if (link.tagName === 'A') {
+      link.setAttribute('aria-label', dl.label);
+      link.addEventListener('click', (e) => e.stopPropagation());
     }
+    refs.deepLinksEl.appendChild(link);
   }
 
   if (!entry.userToggled) {
@@ -650,10 +649,22 @@ function renderPlatformBody(entry, result) {
     const other = Number(result.summary.other) || 0;
     const shared = Number(result.summary.sharedAccounts) || 0;
     parts.push(primary + (primary === 1 ? ' primary advertiser' : ' primary advertisers'));
+    const mention = Number(result.summary.mention) || 0;
     if (other > 0) parts.push(other + (other === 1 ? ' other account' : ' other accounts'));
     if (shared > 0) parts.push(shared + (shared === 1 ? ' shared account' : ' shared accounts'));
+    if (mention > 0) parts.push(mention + (mention === 1 ? ' account mentioning the brand' : ' accounts mentioning the brand'));
     refs.summaryLineEl.textContent = parts.join(', ');
     refs.bodyEl.appendChild(refs.summaryLineEl);
+  }
+
+  // More than 2 library links: one plain list here instead of header icons.
+  if (Array.isArray(result.deepLinks) && result.deepLinks.length && !headerDeepLinks(result.deepLinks)) {
+    const wrap = el('div', { className: 'platform-library-links' });
+    wrap.appendChild(el('span', { className: 'platform-library-links-title', text: 'Libraries' }));
+    for (const dl of result.deepLinks) {
+      if (dl && isSafeHttpUrl(dl.url)) wrap.appendChild(safeLink(dl.url, dl.label || 'Open library'));
+    }
+    refs.bodyEl.appendChild(wrap);
   }
 
   const ads = result.ads || [];
@@ -669,8 +680,10 @@ function renderPlatformBody(entry, result) {
 
   const grouped = new Set();
   let anyRendered = false;
-  // Small accounts (role 'other': affiliates, resellers, brand bidders) go into one collapsed block.
+  // Small accounts (role 'other': affiliates, resellers, brand bidders) go into one collapsed block,
+  // accounts whose ads only mention the brand (role 'mention') into another one after it.
   const otherBlocks = [];
+  const mentionBlocks = [];
 
   for (const adv of advertisers) {
     const advAds = adsByAdvertiser.get(adv.id) || [];
@@ -681,24 +694,29 @@ function renderPlatformBody(entry, result) {
     const block = renderAdvertiserBlock(adv, visibleAds, confirmedCount);
     if (adv.role === 'other') {
       otherBlocks.push(block);
+    } else if (adv.role === 'mention') {
+      mentionBlocks.push(block);
     } else {
       refs.bodyEl.appendChild(block);
     }
     anyRendered = true;
   }
 
-  if (otherBlocks.length) {
+  const appendGroup = (blocks, title, hint) => {
+    if (!blocks.length) return;
     const group = el('details', { className: 'other-advertisers' });
     group.appendChild(el('summary', {
       className: 'other-advertisers-summary',
-      text: 'Other accounts (' + otherBlocks.length + ')',
+      text: title + ' (' + blocks.length + ')',
     }));
-    group.appendChild(el('p', { className: 'other-advertisers-hint', text: 'Often affiliates, resellers or rented agency accounts' }));
+    group.appendChild(el('p', { className: 'other-advertisers-hint', text: hint }));
     const list = el('div', { className: 'other-advertisers-list' });
-    for (const block of otherBlocks) list.appendChild(block);
+    for (const block of blocks) list.appendChild(block);
     group.appendChild(list);
     refs.bodyEl.appendChild(group);
-  }
+  };
+  appendGroup(otherBlocks, 'Other accounts', 'Often affiliates, resellers or rented agency accounts');
+  appendGroup(mentionBlocks, 'Ads mentioning the brand', 'Their ads mention the brand but link to other sites, often competitors');
 
   const otherAds = [];
   for (const [key, list] of adsByAdvertiser.entries()) {
@@ -782,8 +800,14 @@ function renderAdRow(ad) {
   const main = el('div', { className: 'ad-main' });
 
   const headRow = el('div', { className: 'ad-head-row' });
-  headRow.appendChild(el('span', { className: 'badge badge-' + (ad.match || 'keyword'), text: ad.match || '' }));
-  if (ad.format) headRow.appendChild(el('span', { className: 'ad-format', text: ad.format }));
+  const match = MATCH_HINTS[ad.match] ? ad.match : 'keyword';
+  headRow.appendChild(el('span', {
+    className: 'badge badge-' + match,
+    text: matchLabel(match),
+    attrs: { title: MATCH_HINTS[match] },
+  }));
+  const format = formatLabel(ad);
+  if (format) headRow.appendChild(el('span', { className: 'ad-format', text: format }));
   if (ad.isActive === true) headRow.appendChild(el('span', { className: 'ad-active', text: 'Active' }));
   else if (ad.isActive === false) headRow.appendChild(el('span', { className: 'ad-inactive', text: 'Inactive' }));
   main.appendChild(headRow);
@@ -796,9 +820,8 @@ function renderAdRow(ad) {
   if (ad.firstShown || ad.lastShown) {
     meta.appendChild(el('span', { text: (ad.firstShown || '?') + ' - ' + (ad.lastShown || '?') }));
   }
-  if (ad.placements && ad.placements.length) {
-    meta.appendChild(el('span', { text: ad.placements.join(', ') }));
-  }
+  const placements = placementsText(ad);
+  if (placements) meta.appendChild(el('span', { text: placements }));
   if (meta.childNodes.length) main.appendChild(meta);
 
   const linkRow = el('div', { className: 'ad-link-row' });

@@ -124,10 +124,34 @@ test('search() end to end with fake fetch', async () => {
   assert.equal(byId['123'].match, 'confirmed');
   assert.equal(byId['123'].advertiserId, '12345');
   assert.equal(byId['456'].match, 'confirmed');
-  assert.equal(byId['789'].match, 'name');
+  // "Acme Sports" has no ad pointing to the domain: a same-name match is dropped.
+  assert.equal(byId['789'], undefined);
+  assert.deepEqual(res.advertisers.map((a) => a.id), ['12345']);
   const top = res.advertisers[0];
   assert.equal(top.id, '12345');
   assert.equal(top.url, 'https://www.linkedin.com/company/12345');
+  assert.match(res.message, /^2 ads, 2 pointing to decathlon\.com/);
+});
+
+// ---- live finding 2026-09-26: outrank.so matched "Outrank" (company 144811284, outrank.ie) ----
+
+test('search() reports empty when no ad points to the domain, without same-name advertisers', async () => {
+  const detail = '<html><body><a href="https://www.linkedin.com/company/144811284">Outrank</a>'
+    + '<a href="https://www.linkedin.com/redir/redirect?url=https%3A%2F%2Foutrank.ie%2F">Visit</a></body></html>';
+  const card = '<li class="search-result-item"><a href="/ad-library/detail/5001"></a><p>Outrank</p>'
+    + '<p class="commentary__content">SEO agency in Dublin</p></li>';
+  const ctx = {
+    settings: { linkedinPages: 1, linkedinDetails: 5 },
+    async fetch(url) {
+      if (url.includes('/ad-library/detail/')) return fakeResponse(detail, { url });
+      return fakeResponse(`<html><head><title>LinkedIn Ad Library</title></head><body><ul>${card}</ul></body></html>`, { url });
+    },
+  };
+  const res = await search({ domain: 'outrank.so', brand: 'Outrank', advertiserNames: ['Outrank.so'], social: { linkedin: [] } }, ctx);
+  assert.equal(res.status, 'empty');
+  assert.equal(res.message, 'No LinkedIn ads point to outrank.so (searched: Outrank, Outrank.so)');
+  assert.deepEqual(res.ads, []);
+  assert.deepEqual(res.advertisers, []);
 });
 
 test('search() maps auth wall to needs_user', async () => {
@@ -173,7 +197,7 @@ test('search() reports empty (not changed) for an Ad Library page without cards'
   };
   const res = await search({ domain: 'babylovegrowth.ai', brand: 'babylovegrowth', social: { linkedin: [] } }, ctx);
   assert.equal(res.status, 'empty');
-  assert.match(res.message, /^No LinkedIn ads found for babylovegrowth/);
+  assert.equal(res.message, 'No LinkedIn ads point to babylovegrowth.ai (searched: babylovegrowth)');
   assert.equal(seen.length, 1);
 });
 
@@ -195,7 +219,7 @@ test('search() adds accountOwner searches for up to 2 advertiser names', async (
   }, ctx);
   assert.deepEqual(owners, ['babylovegrowth', 'BLG INC', 'BLG']);
   assert.equal(res.status, 'empty');
-  assert.match(res.message, /babylovegrowth, BLG INC, BLG/);
+  assert.match(res.message, /\(searched: babylovegrowth, BLG INC, BLG\)$/);
 });
 
 // ---- live finding 2026-09-26: thought-leader ads (employee posts promoted by the company) ----
@@ -262,4 +286,30 @@ test('search() attributes employee posts to the promoting company and its id', a
   const blg = res.advertisers.find((a) => a.id === '777');
   assert.equal(blg.adCount, 2);
   assert.equal(blg.confirmedCount, 1);
+  // The "Other Corp" employee post has no confirmed company: dropped.
+  assert.equal(byId['1003'], undefined);
+  assert.deepEqual(res.advertisers.map((a) => a.id), ['777']);
+});
+
+test('search() keeps an employee post of a confirmed company even without a company id', async () => {
+  // Company card 1001 confirmed but its detail has no company link; employee post 1002 promoted by
+  // "BabyLoveGrowth" is never detailed.
+  const detail = '<html><body>'
+    + '<a href="https://www.linkedin.com/redir/redirect?url=https%3A%2F%2Fbabylovegrowth.ai%2F">Start</a></body></html>';
+  const ctx = {
+    settings: { linkedinPages: 1, linkedinDetails: 1 },
+    async fetch(url) {
+      if (url.includes('/ad-library/detail/1001')) return fakeResponse(detail, { url });
+      if (url.includes('/ad-library/detail/')) return fakeResponse('<html></html>', { url });
+      return fakeResponse(PL_HTML, { url });
+    },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'babylovegrowth', social: { linkedin: [] } }, ctx);
+  assert.equal(res.status, 'ok');
+  const post = res.ads.find((a) => a.id === '1002');
+  assert.ok(post, 'employee post kept');
+  assert.equal(post.advertiserId, 'BabyLoveGrowth');
+  assert.equal(post.match, 'advertiser');
+  assert.equal(res.ads.find((a) => a.id === '1001').match, 'confirmed');
+  assert.equal(res.ads.find((a) => a.id === '1003'), undefined);
 });

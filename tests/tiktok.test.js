@@ -207,7 +207,7 @@ test('searchPlan: keyword brand, then up to 2 advertiser names and the brand as 
   assert.equal(MAX_SEARCH_CAPTURES, 4);
 });
 
-test('search() bounds search captures at 4 and marks advertiser-name-only ads as name', async () => {
+test('search() bounds search captures at 4; a name-only advertiser without a confirmed ad is dropped', async () => {
   const searches = [];
   const nameOnly = JSON.stringify({
     code: 0,
@@ -231,9 +231,37 @@ test('search() bounds search captures at 4 and marks advertiser-name-only ads as
     advertiserNames: ['BLG INC', 'BLG', 'Babylovegrowth'],
   }, ctx);
   assert.deepEqual(searches, ['1:babylovegrowth:all', '2:BLG INC:all', '2:BLG:all', '2:babylovegrowth:all']);
+  // Same name, but no ad points to the domain: not shown (live finding outrank.so, 2026-09-26).
+  assert.equal(res.status, 'empty');
+  assert.equal(res.message, 'No TikTok ads point to babylovegrowth.ai (searched: babylovegrowth, BLG INC, BLG)');
+  assert.deepEqual(res.ads, []);
+  assert.deepEqual(res.advertisers, []);
+  // Advertiser-name-only hits are still mapped as 'name' matches.
+  assert.equal(mapTiktokAd({ id: '1900000000000009', advertiserName: 'BLG INC', viaName: true }, 'babylovegrowth.ai').match, 'name');
+});
+
+test('search() keeps only advertisers with an ad pointing to the domain', async () => {
+  const body = JSON.stringify({
+    code: 0,
+    data: {
+      items: [
+        { id: '1900000000000001', name: 'Outrank', adv_biz_id: '7100000000000000001', external_url: 'https://outrank.so/pricing', videos: [] },
+        { id: '1900000000000002', name: 'Outrank', adv_biz_id: '7100000000000000001', videos: [] },
+        { id: '1900000000000003', name: 'Outrank IE', adv_biz_id: '7100000000000000003', external_url: 'https://outrank.ie/', videos: [] },
+      ],
+    },
+  });
+  const ctx = {
+    settings: { tiktokRegions: [], tiktokDetails: 0 },
+    async capture() {
+      return { payloads: [{ url: 'https://library.tiktok.com/api/v1/search?region=all&type=1', status: 200, body }] };
+    },
+  };
+  const res = await search({ domain: 'outrank.so', brand: 'Outrank' }, ctx);
   assert.equal(res.status, 'ok');
-  assert.equal(res.ads.length, 1);
-  assert.equal(res.ads[0].match, 'name');
+  assert.deepEqual(res.ads.map((a) => [a.id, a.match]), [['1900000000000001', 'confirmed'], ['1900000000000002', 'advertiser']]);
+  assert.deepEqual(res.advertisers.map((a) => a.id), ['7100000000000000001']);
+  assert.match(res.message, /^2 ads, 1 pointing to outrank\.so/);
 });
 
 test('search() spends only the leftover budget on per-region retries', async () => {

@@ -5,7 +5,7 @@
 
 import { hostMatches, domainLabel, unwrapRedirect } from '../lib/domain.js';
 import { walkJson, toIsoDate, sleep, uniq } from '../lib/util.js';
-import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds } from '../lib/model.js';
+import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, keepConfirmedAdvertisers } from '../lib/model.js';
 
 export const meta = { id: 'tiktok', label: 'TikTok', coverage: 'EU/EEA, UK, CH only' };
 
@@ -359,15 +359,22 @@ export async function search(seeds, ctx) {
     prev.viaName = viaName;
   };
 
-  const finish = (status, message) => {
+  // Ads of advertisers with at least one ad pointing to the domain: a same-name advertiser without
+  // one is a different company (name search alone is noise, as on LinkedIn and Bing).
+  const buildAds = () => {
     let ads = dedupeAds([...state.raw.values()].map((r) => mapTiktokAd(r, domain)));
-    ads = promoteAdvertiserMatches(ads) || ads;
+    ads = keepConfirmedAdvertisers(ads);
+    return promoteAdvertiserMatches(ads) || ads;
+  };
+
+  const result = (status, message, ads) => {
     const advertisers = aggregateAdvertisers(ads, {
       platform: 'tiktok',
       urlFor: (id, name) => advertiserUrl(id, name),
     });
     return makeResult(meta, { status, message, ads, advertisers, deepLinks: links });
   };
+  const finish = (status, message) => result(status, message, buildAds());
 
   try {
     if (!ctx || typeof ctx.capture !== 'function') {
@@ -465,17 +472,22 @@ export async function search(seeds, ctx) {
     }
 
     const total = state.raw.size;
+    const ads = buildAds();
+    const confirmed = ads.filter((a) => a.match === 'confirmed').length;
     if (state.rateLimited) {
-      return finish('rate_limited', total
-        ? `TikTok rate limit hit, showing partial results (${total} ads)`
-        : 'TikTok is rate limiting this browser, try again later');
+      return result('rate_limited', ads.length
+        ? `TikTok rate limit hit, showing partial results (${ads.length} ads)`
+        : 'TikTok is rate limiting this browser, try again later', ads);
     }
-    if (total) {
-      return finish('ok', `${total} ads found, landing pages checked for ${state.details}`);
+    if (confirmed) {
+      return result('ok', `${ads.length} ads, ${confirmed} pointing to ${domain} (landing pages checked for ${state.details} of ${total})`, ads);
     }
-    if (state.anyOk) return finish('empty', 'No TikTok ads found for this brand in EU/EEA, UK, CH');
-    if (state.sawSearchPayload) return finish('changed', 'TikTok changed its response format');
-    return finish('error', 'TikTok search data was not captured (page did not load)');
+    if (state.anyOk) {
+      const searched = uniq(plan.map((s) => s.q)).join(', ');
+      return result('empty', `No TikTok ads point to ${domain} (searched: ${searched})`, []);
+    }
+    if (state.sawSearchPayload) return result('changed', 'TikTok changed its response format', []);
+    return result('error', 'TikTok search data was not captured (page did not load)', []);
   } catch (err) {
     if (ctx && ctx.signal && ctx.signal.aborted) return finish('error', 'Stopped');
     return finish('error', `TikTok search failed: ${(err && err.message) || err}`);

@@ -26,6 +26,7 @@ import {
   cleanAdvertiserName,
   advertiserNameSeeds,
   nameQueries,
+  keepConfirmedAdvertisers,
 } from '../lib/model.js';
 import {
   MAX_ENTRIES,
@@ -286,14 +287,57 @@ test('assignRoles: >= 10% share or >= 5 ads is primary, top always primary', () 
   assert.ok(advs.slice(2).every((a) => a.role === 'other'));
 
   // Small platform: every advertiser holds >= 10%.
-  const few = assignRoles([makeAdvertiser({ id: 'a', adCount: 2 }), makeAdvertiser({ id: 'b', adCount: 1 })]);
+  const few = assignRoles([makeAdvertiser({ id: 'a', adCount: 2, confirmedCount: 1 }), makeAdvertiser({ id: 'b', adCount: 1, confirmedCount: 1 })]);
   assert.deepEqual(few.map((a) => a.role), ['primary', 'primary']);
 
-  // Top advertiser is primary even below both thresholds.
+  // Top advertiser is primary even below both thresholds; the rest has no confirmed ad.
   const many = assignRoles(Array.from({ length: 20 }, (_, i) => makeAdvertiser({ id: `m${i}`, adCount: 1, confirmedCount: i === 7 ? 1 : 0 })));
   assert.equal(many[7].role, 'primary');
   assert.equal(many.filter((a) => a.role === 'primary').length, 1);
+  assert.equal(many.filter((a) => a.role === 'mention').length, 19);
   assert.deepEqual(assignRoles([]), []);
+});
+
+test('assignRoles: advertisers without confirmed ads are mention, never primary (outrank.so, Meta)', () => {
+  // Live 2026-09-26: the owner 30/30, keyword matches TradeZip 0/8 and Opinly 0/7.
+  const advs = assignRoles([
+    makeAdvertiser({ platform: 'meta', id: 'owner', name: 'Outrank.so', adCount: 30, confirmedCount: 30 }),
+    makeAdvertiser({ platform: 'meta', id: 'tz', name: 'TradeZip', adCount: 8, confirmedCount: 0 }),
+    makeAdvertiser({ platform: 'meta', id: 'op', name: 'Opinly', adCount: 7, confirmedCount: 0 }),
+    makeAdvertiser({ platform: 'meta', id: 'aff', name: 'Affiliate', adCount: 1, confirmedCount: 1 }),
+  ]);
+  assert.deepEqual(advs.map((a) => a.role), ['primary', 'mention', 'mention', 'other']);
+
+  // Keyword matches only: nobody is primary.
+  const none = assignRoles([
+    makeAdvertiser({ platform: 'google', id: 'a', adCount: 12, confirmedCount: 0 }),
+    makeAdvertiser({ platform: 'google', id: 'b', adCount: 2, confirmedCount: 0 }),
+  ]);
+  assert.deepEqual(none.map((a) => a.role), ['mention', 'mention']);
+
+  // Snapchat never exposes landing pages: name matches keep size-based roles.
+  const snap = assignRoles([
+    makeAdvertiser({ platform: 'snap', id: 'Acme', adCount: 20, confirmedCount: 0 }),
+    makeAdvertiser({ platform: 'snap', id: 'Tiny', adCount: 1, confirmedCount: 0 }),
+  ]);
+  assert.deepEqual(snap.map((a) => a.role), ['primary', 'other']);
+});
+
+test('keepConfirmedAdvertisers drops advertisers without an ad pointing to the domain', () => {
+  const ads = [
+    makeAd({ platform: 'linkedin', id: '1', advertiserId: '777', advertiserName: 'Outrank.so', match: 'confirmed' }),
+    makeAd({ platform: 'linkedin', id: '2', advertiserId: '777', advertiserName: 'Outrank.so', match: 'name' }),
+    makeAd({ platform: 'linkedin', id: '3', advertiserId: '144811284', advertiserName: 'Outrank', match: 'name' }),
+    makeAd({ platform: 'linkedin', id: '4', advertiserId: 'Outrank.so', advertiserName: 'Outrank.so', match: 'name' }),
+  ];
+  assert.deepEqual(keepConfirmedAdvertisers(ads).map((a) => a.id), ['1', '2']);
+  // adopt(): an employee post of the confirmed company joins it.
+  const adopted = keepConfirmedAdvertisers(ads, (ad, byName) => (ad.id === '4' ? byName.get('outrank.so') : ''));
+  assert.deepEqual(adopted.map((a) => [a.id, a.advertiserId]), [['1', '777'], ['2', '777'], ['4', '777']]);
+  assert.equal(ads[3].advertiserId, 'Outrank.so'); // input not mutated
+  // Nothing confirmed: nothing kept.
+  assert.deepEqual(keepConfirmedAdvertisers(ads.slice(2)), []);
+  assert.deepEqual(keepConfirmedAdvertisers(undefined), []);
 });
 
 test('aggregateAdvertisers assigns roles', () => {
@@ -325,6 +369,7 @@ test('advertiserNameSeeds: primary advertisers with confirmed ads, raw + cleaned
         makeAdvertiser({ name: 'BLG INC', adCount: 116, confirmedCount: 116, role: 'primary' }),
         makeAdvertiser({ name: 'Reseller LLC', adCount: 1, confirmedCount: 1, role: 'other' }),
         makeAdvertiser({ name: 'Keyword Only', adCount: 9, confirmedCount: 0, role: 'primary' }),
+        makeAdvertiser({ name: 'Competitor', adCount: 40, confirmedCount: 0, role: 'mention' }),
       ],
     },
     { platform: 'meta', advertisers: [makeAdvertiser({ name: 'Babylovegrowth', adCount: 12, confirmedCount: 12 })] },
@@ -396,9 +441,10 @@ test('makeAdvertiser defaults domains/note; accountNote and advertiserSummary', 
       makeAdvertiser({ id: 'a', role: 'primary' }),
       makeAdvertiser({ id: 'b', role: 'other', domains: 12 }),
       makeAdvertiser({ id: 'c', role: 'other', domains: 1 }),
+      makeAdvertiser({ id: 'd', role: 'mention' }),
       null,
     ]),
-    { primary: 1, other: 2, sharedAccounts: 1 },
+    { primary: 1, other: 2, mention: 1, sharedAccounts: 1 },
   );
-  assert.deepEqual(advertiserSummary(undefined), { primary: 0, other: 0, sharedAccounts: 0 });
+  assert.deepEqual(advertiserSummary(undefined), { primary: 0, other: 0, mention: 0, sharedAccounts: 0 });
 });

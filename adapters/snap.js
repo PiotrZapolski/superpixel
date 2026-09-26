@@ -20,6 +20,7 @@ const NAME_KEYS = ['paying_advertiser_name', 'profile_name', 'brand_name'];
 const SNAP_HOST_RE = /(^|\.)(snapchat\.com|snap\.com|sc-cdn\.net|sc-static\.net|snapads\.com|snapkit\.com)$/i;
 const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|mp4|mov|webm|m3u8)(\?|#|$)/i;
 const RETRY_MS = [5000, 15000];
+export const NAME_MATCH_NOTE = 'Name match only, Snapchat does not expose landing pages';
 
 // ---------------------------------------------------------------------------------------------
 // Pure helpers
@@ -156,6 +157,8 @@ export async function search(seeds, ctx) {
     let ads = dedupeAds(collected);
     ads = promoteAdvertiserMatches(ads) || ads;
     const advertisers = aggregateAdvertisers(ads, { platform: 'snap', urlFor: () => GALLERY });
+    // Snap shows no landing pages, so an advertiser found by name cannot be verified.
+    for (const a of advertisers) if (!(a.confirmedCount > 0)) a.note = NAME_MATCH_NOTE;
     return makeResult(meta, { status, message, ads, advertisers, deepLinks: links });
   };
 
@@ -192,7 +195,11 @@ export async function search(seeds, ctx) {
       }
     }
     const quoted = names.map((x) => `"${x}"`).join(' / ');
-    if (collected.length) return finish('ok', `${dedupeAds(collected).length} ads paid by advertisers named ${quoted}`);
+    if (collected.length) {
+      const n = dedupeAds(collected).length;
+      const verified = collected.some((a) => a.match === 'confirmed');
+      return finish('ok', `${n} ads paid by advertisers named ${quoted}${verified ? '' : ', unverified: Snapchat does not show landing pages'}`);
+    }
     if (ok) return finish('empty', `No Snapchat ads found in the EU for advertiser ${quoted}`);
     if (firstFailure) return finish(firstFailure[0], firstFailure[1]);
     return finish('error', 'No response from Snapchat');

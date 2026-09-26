@@ -307,7 +307,7 @@ test('search profiles other advertisers: shared account note, only-this-domain n
   assert.equal(owner.role, 'primary');
   assert.equal(owner.domains, null);
   assert.equal(owner.note, '');
-  assert.deepEqual(res.summary, { primary: 1, other: 2, sharedAccounts: 1 });
+  assert.deepEqual(res.summary, { primary: 1, other: 2, mention: 0, sharedAccounts: 1 });
   // Only one extra request per other advertiser; the domain ads are not polluted.
   assert.equal(res.ads.length, 22);
 });
@@ -328,5 +328,5 @@ test('search stops profiling at the first 429 and keeps the result ok', async ()
   assert.equal(profileCalls, 1);
   assert.match(res.message, /Advertiser check stopped/);
   assert.ok(res.advertisers.every((a) => a.note === ''));
-  assert.deepEqual(res.summary, { primary: 1, other: 2, sharedAccounts: 0 });
+  assert.deepEqual(res.summary, { primary: 1, other: 2, mention: 0, sharedAccounts: 0 });
 });
