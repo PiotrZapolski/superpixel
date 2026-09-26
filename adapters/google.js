@@ -170,6 +170,8 @@ export async function search(seeds, ctx) {
     }
     let advertisers = [];
     try {
+      // Roles via lib/model.js assignRoles: the owner is 'primary'; accounts with a handful of
+      // ads to the same domain (affiliates, resellers, brand bidders) are 'other'.
       advertisers = aggregateAdvertisers(ads, { platform: 'google', urlFor: (id) => advertiserUrl(id) }) || [];
     } catch {
       advertisers = [];

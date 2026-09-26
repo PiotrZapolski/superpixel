@@ -1,5 +1,6 @@
 // Capture tabs in a dedicated, unfocused (minimized) scan window.
 // Content scripts (content/hook-main.js + content/relay.js) forward network captures from these tabs.
+import { logInfo, logWarn, safeUrl, errText } from './log.js';
 
 const MAX_PAYLOADS_PER_TAB = 400;
 const LOAD_TIMEOUT_MS = 20000;
@@ -268,8 +269,10 @@ export async function openCaptureTab(url, opts = {}) {
       showScanTabs,
       beforeNavigate: (id) => sessions.set(id, session),
     });
+    logInfo('capture', `Open ${opts.platform || ''} tab ${safeUrl(url)}`);
 
     const loaded = await waitForComplete(tabId, LOAD_TIMEOUT_MS);
+    if (!loaded) logWarn('capture', `Load timeout ${safeUrl(url)}`);
     const loadedAt = Date.now();
 
     // Initial wait: waitMs after load, or earlier once payloads arrived and went quiet.
@@ -296,9 +299,15 @@ export async function openCaptureTab(url, opts = {}) {
     if (!session.closed) tabUrl = await tabUrlOf(tabId);
   } catch (e) {
     error = (e && e.message) || 'capture failed';
+    logWarn('capture', `Capture failed ${safeUrl(url)}: ${errText(e)}`);
   } finally {
     if (tabId != null) await closeScanTab(tabId);
     if (release) release();
+  }
+  if (tabId != null) {
+    const msg = `Close tab ${safeUrl(url)}: ${session.payloads.length} payloads${error ? `, ${error}` : ''}${tabUrl ? `, ended on ${safeUrl(tabUrl)}` : ''}`;
+    if (error && error !== 'aborted') logWarn('capture', msg);
+    else logInfo('capture', msg);
   }
   return { payloads: session.payloads, tabUrl, error };
 }
@@ -325,7 +334,9 @@ export async function openCaptureTabDom(url, opts = {}) {
       showScanTabs,
       beforeNavigate: (id) => sessions.set(id, session),
     });
+    logInfo('capture', `Open DOM tab ${safeUrl(url)}`);
     const loaded = await waitForComplete(tabId, LOAD_TIMEOUT_MS);
+    if (!loaded) logWarn('capture', `Load timeout ${safeUrl(url)}`);
     // Wait waitMs, extended while network captures keep arriving (bounded to 2x waitMs).
     let r = await waitLoop(waitMs, session, signal, null);
     if (r === 'time') {
@@ -341,9 +352,15 @@ export async function openCaptureTabDom(url, opts = {}) {
     }
   } catch (e) {
     error = (e && e.message) || 'capture failed';
+    logWarn('capture', `DOM capture failed ${safeUrl(url)}: ${errText(e)}`);
   } finally {
     if (tabId != null) await closeScanTab(tabId);
     if (release) release();
+  }
+  if (tabId != null) {
+    const msg = `Close DOM tab ${safeUrl(url)}: ${dom.hrefs.length} links, ${dom.text.length} chars${error ? `, ${error}` : ''}`;
+    if (error && error !== 'aborted') logWarn('capture', msg);
+    else logInfo('capture', msg);
   }
   return { text: dom.text, hrefs: dom.hrefs, tabUrl, error };
 }

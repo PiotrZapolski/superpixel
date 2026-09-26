@@ -6,7 +6,7 @@
 import { hostMatches, unwrapRedirect } from '../lib/domain.js';
 import { sleep, uniq } from '../lib/util.js';
 import { decodeEntities, attrValues, firstClassText } from '../lib/html.js';
-import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds } from '../lib/model.js';
+import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, nameQueries } from '../lib/model.js';
 import { backoff } from '../background/queue.js';
 
 export const meta = { id: 'linkedin', label: 'LinkedIn', coverage: 'Global, last 12 months' };
@@ -136,6 +136,25 @@ export function parsePaginationMeta(html) {
   }
   if (!j || typeof j !== 'object') return null;
   return { isLastPage: Boolean(j.isLastPage), paginationToken: j.paginationToken ? String(j.paginationToken) : null };
+}
+
+/**
+ * True when the HTML is a LinkedIn Ad Library search page (or pagination fragment), even with
+ * zero result cards: a brand without ads gets HTTP 200 with a normal ~110KB page, no
+ * `search-result-item` and no paginationMetadata. Language independent: relies on the
+ * search form / accountOwner field, a LinkedIn page title, or a "(0)" results header, all on a
+ * page that references /ad-library.
+ */
+export function isAdLibraryPage(html) {
+  const s = String(html || '');
+  if (!/ad-library/i.test(s)) return false;
+  if (DETAIL_RE.test(s) || /paginationMetadata/i.test(s)) return true;
+  if (/<form\b[^>]*\baction\s*=\s*["'][^"']*ad-library\/search/i.test(s)) return true;
+  if (/\bname\s*=\s*["'](?:accountOwner|keyword|countries)["']/i.test(s)) return true;
+  const title = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(s);
+  if (title && /ad library|linkedin/i.test(decodeEntities(title[1]))) return true;
+  // "(0)" results header in visible text (scripts are dropped by htmlLines).
+  return htmlLines(s).some((l) => /\(\s*0\s*\)/.test(l));
 }
 
 function hostOfUrl(u) {
@@ -300,7 +319,9 @@ export async function search(seeds, ctx) {
     const brand = (seeds && seeds.brand) || '';
     const companyIds = companyIdsFromSocial(seeds && seeds.social && seeds.social.linkedin).slice(0, 2);
     const searches = companyIds.map((id) => ({ companyIds: id }));
-    if (brand) searches.push({ accountOwner: brand });
+    // accountOwner: the brand plus up to 2 advertiser names found on Google/Meta.
+    const owners = nameQueries(brand, seeds && seeds.advertiserNames, 2);
+    for (const owner of owners) searches.push({ accountOwner: owner });
     if (!searches.length) return finish('skipped', 'No brand name or LinkedIn company found');
     const maxPages = Math.max(1, Number(settings.linkedinPages) || 2);
 
@@ -315,7 +336,7 @@ export async function search(seeds, ctx) {
         anyResponse = true;
         const parsed = parseLinkedinSearch(r.text);
         const pm = parsePaginationMeta(r.text);
-        if (parsed.length || pm || /no (ads|results) (were )?(found|match)/i.test(r.text)) anyRecognized = true;
+        if (parsed.length || pm || /no (ads|results) (were )?(found|match)/i.test(r.text) || isAdLibraryPage(r.text)) anyRecognized = true;
         for (const c of parsed) if (!cards.has(c.id)) cards.set(c.id, c);
         if (!pm || pm.isLastPage || !pm.paginationToken) break;
         token = pm.paginationToken;
@@ -324,12 +345,12 @@ export async function search(seeds, ctx) {
 
     if (!rateLimited && !authwall) {
       const max = Number.isFinite(Number(settings.linkedinDetails)) ? Number(settings.linkedinDetails) : 10;
-      const b = brand.toLowerCase();
-      const ordered = [...cards.values()].sort((x, y) => {
-        const xs = b && (x.promotedBy || x.advertiserName || '').toLowerCase().includes(b) ? 0 : 1;
-        const ys = b && (y.promotedBy || y.advertiserName || '').toLowerCase().includes(b) ? 0 : 1;
-        return xs - ys;
-      }).slice(0, Math.max(0, max));
+      const names = owners.map((o) => o.toLowerCase());
+      const rank = (c) => {
+        const n = (c.promotedBy || c.advertiserName || '').toLowerCase();
+        return names.some((o) => n.includes(o)) ? 0 : 1;
+      };
+      const ordered = [...cards.values()].sort((x, y) => rank(x) - rank(y)).slice(0, Math.max(0, max));
       for (let i = 0; i < ordered.length; i += 1) {
         progress(`Checking ad details ${i + 1}/${ordered.length}`);
         const r = await getHtml(ctx, detailUrlFor(ordered[i].id));
@@ -346,7 +367,8 @@ export async function search(seeds, ctx) {
     if (n) return finish('ok', `${n} ads found, landing pages checked for ${details.size}`);
     if (httpError && !anyResponse) return finish('error', `LinkedIn Ad Library returned ${httpError}`);
     if (anyResponse && !anyRecognized) return finish('changed', 'LinkedIn changed its response format');
-    return finish('empty', 'No LinkedIn ads found in the last 30 days');
+    const searchedFor = owners.length ? owners.join(', ') : companyIds.map((id) => `company ${id}`).join(', ');
+    return finish('empty', `No LinkedIn ads found for ${searchedFor} (last 30 days)`);
   } catch (err) {
     if (ctx && ctx.signal && ctx.signal.aborted) return finish('error', 'Stopped');
     return finish('error', `LinkedIn search failed: ${(err && err.message) || err}`);

@@ -87,3 +87,41 @@ test('search() maps HTTP errors without throwing', async () => {
   const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
   assert.equal(res.status, 'error');
 });
+
+test('search() also queries up to 2 advertiser names, sequentially and throttled', async () => {
+  const names = [];
+  let throttles = 0;
+  let inFlight = 0;
+  const ctx = {
+    settings: {},
+    async throttle() { throttles += 1; },
+    async fetch(url, init) {
+      inFlight += 1;
+      assert.equal(inFlight, 1);
+      const body = JSON.parse(init.body);
+      names.push(body.paying_advertiser_name);
+      await Promise.resolve();
+      inFlight -= 1;
+      if (body.paying_advertiser_name === 'BLG') {
+        return fakeResponse({
+          request_status: 'SUCCESS',
+          ad_previews: [{ ad_preview: { id: 'snap-1', name: 'Spring', paying_advertiser_name: 'BLG' } }],
+        });
+      }
+      return fakeResponse({ request_status: 'SUCCESS', ad_previews: [] });
+    },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'babylovegrowth', advertiserNames: ['BLG INC', 'BLG', 'Third'] }, ctx);
+  assert.deepEqual(names, ['babylovegrowth', 'BLG INC', 'BLG']);
+  assert.equal(throttles, 3);
+  assert.equal(res.status, 'ok');
+  assert.equal(res.ads.length, 1);
+  assert.equal(res.ads[0].match, 'name');
+});
+
+test('search() reports empty with the searched names when nothing is found', async () => {
+  const ctx = { settings: {}, async fetch() { return fakeResponse({ request_status: 'SUCCESS', ad_previews: [] }); } };
+  const res = await search({ domain: 'x.com', brand: 'Acme', advertiserNames: ['Acme Corp'] }, ctx);
+  assert.equal(res.status, 'empty');
+  assert.match(res.message, /"Acme" \/ "Acme Corp"/);
+});

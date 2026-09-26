@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ad Library | LinkedIn</title>
+<link rel="canonical" href="https://www.linkedin.com/ad-library/search">
+<meta name="description" content="Search ads that have run on LinkedIn.">
+</head>
+<body>
+<header class="ad-library-header">
+  <a href="https://www.linkedin.com/ad-library/home" class="ad-library-header__logo">LinkedIn Ad Library</a>
+</header>
+<main class="ad-library-main">
+  <section class="ad-library-search">
+    <form class="search-form" action="/ad-library/search" method="GET">
+      <label for="accountOwner">Advertiser name</label>
+      <input type="text" id="accountOwner" name="accountOwner" value="babylovegrowth">
+      <label for="keyword">Keyword</label>
+      <input type="text" id="keyword" name="keyword" value="">
+      <select name="countries"><option value="ALL" selected>All countries</option></select>
+      <select name="dateOption"><option value="last-30-days" selected>Last 30 days</option></select>
+      <button type="submit">Search</button>
+    </form>
+  </section>
+  <section class="search-results">
+    <h1 class="search-results__header">Ads (0)</h1>
+    <ul class="search-results__list"></ul>
+    <p class="search-results__empty">Try a different advertiser name, keyword or date range.</p>
+  </section>
+</main>
+<footer class="ad-library-footer">
+  <a href="https://www.linkedin.com/legal/user-agreement">User Agreement</a>
+  <a href="https://www.linkedin.com/legal/privacy-policy">Privacy Policy</a>
+</footer>
+<script type="application/json" id="ad-library-config">{"locale":"en_US","page":"ad-library-search"}</script>
+</body>
+</html>

@@ -20,7 +20,22 @@ import {
   aggregateAdvertisers,
   promoteAdvertiserMatches,
   dedupeAds,
+  assignRoles,
+  cleanAdvertiserName,
+  advertiserNameSeeds,
+  nameQueries,
 } from '../lib/model.js';
+import {
+  MAX_ENTRIES,
+  log,
+  logWarn,
+  logError,
+  getLog,
+  clearLog,
+  safeUrl,
+  errText,
+  formatLogLines,
+} from '../background/log.js';
 
 // ---- lib/domain.js ----
 
@@ -249,4 +264,119 @@ test('promoteAdvertiserMatches and dedupeAds', () => {
   assert.equal(deduped.length, 2);
   assert.equal(deduped[0].match, 'confirmed');
   assert.deepEqual(deduped[0].placements, ['youtube']);
+});
+
+// ---- advertiser roles and name seeds ----
+
+test('makeAdvertiser defaults role to primary', () => {
+  assert.equal(makeAdvertiser({ id: 'x' }).role, 'primary');
+  assert.equal(makeAdvertiser({ id: 'x', role: 'other' }).role, 'other');
+});
+
+test('assignRoles: >= 10% share or >= 5 ads is primary, top always primary', () => {
+  const advs = [
+    makeAdvertiser({ id: 'owner', adCount: 116, confirmedCount: 116 }),
+    ...Array.from({ length: 12 }, (_, i) => makeAdvertiser({ id: `r${i}`, adCount: i === 0 ? 5 : 1, confirmedCount: 1 })),
+  ];
+  assignRoles(advs);
+  assert.equal(advs[0].role, 'primary');
+  assert.equal(advs[1].role, 'primary'); // 5 ads
+  assert.ok(advs.slice(2).every((a) => a.role === 'other'));
+
+  // Small platform: every advertiser holds >= 10%.
+  const few = assignRoles([makeAdvertiser({ id: 'a', adCount: 2 }), makeAdvertiser({ id: 'b', adCount: 1 })]);
+  assert.deepEqual(few.map((a) => a.role), ['primary', 'primary']);
+
+  // Top advertiser is primary even below both thresholds.
+  const many = assignRoles(Array.from({ length: 20 }, (_, i) => makeAdvertiser({ id: `m${i}`, adCount: 1, confirmedCount: i === 7 ? 1 : 0 })));
+  assert.equal(many[7].role, 'primary');
+  assert.equal(many.filter((a) => a.role === 'primary').length, 1);
+  assert.deepEqual(assignRoles([]), []);
+});
+
+test('aggregateAdvertisers assigns roles', () => {
+  const ads = [];
+  for (let i = 0; i < 30; i++) ads.push(makeAd({ platform: 'google', id: `o${i}`, advertiserId: 'OWN', advertiserName: 'Owner', match: 'confirmed' }));
+  ads.push(makeAd({ platform: 'google', id: 'x1', advertiserId: 'AFF', advertiserName: 'Affiliate', match: 'confirmed' }));
+  const advs = aggregateAdvertisers(ads, { platform: 'google' });
+  assert.deepEqual(advs.map((a) => [a.id, a.role]), [['OWN', 'primary'], ['AFF', 'other']]);
+});
+
+test('cleanAdvertiserName strips legal suffixes', () => {
+  assert.equal(cleanAdvertiserName('BLG INC'), 'BLG');
+  assert.equal(cleanAdvertiserName('Acme, Inc.'), 'Acme');
+  assert.equal(cleanAdvertiserName('Acme GmbH & Co. KG'), 'Acme');
+  assert.equal(cleanAdvertiserName('Decathlon S.A.'), 'Decathlon');
+  assert.equal(cleanAdvertiserName('Polska Firma Sp. z o.o.'), 'Polska Firma');
+  assert.equal(cleanAdvertiserName('Dutch B.V.'), 'Dutch');
+  assert.equal(cleanAdvertiserName('Brit Limited'), 'Brit');
+  assert.equal(cleanAdvertiserName('Maison SAS'), 'Maison');
+  assert.equal(cleanAdvertiserName('Babylovegrowth'), 'Babylovegrowth');
+  assert.equal(cleanAdvertiserName('Inc'), 'Inc');
+});
+
+test('advertiserNameSeeds: primary advertisers with confirmed ads, raw + cleaned, max 5', () => {
+  const results = [
+    {
+      platform: 'google',
+      advertisers: [
+        makeAdvertiser({ name: 'BLG INC', adCount: 116, confirmedCount: 116, role: 'primary' }),
+        makeAdvertiser({ name: 'Reseller LLC', adCount: 1, confirmedCount: 1, role: 'other' }),
+        makeAdvertiser({ name: 'Keyword Only', adCount: 9, confirmedCount: 0, role: 'primary' }),
+      ],
+    },
+    { platform: 'meta', advertisers: [makeAdvertiser({ name: 'Babylovegrowth', adCount: 12, confirmedCount: 12 })] },
+  ];
+  assert.deepEqual(advertiserNameSeeds(results), ['BLG INC', 'BLG', 'Babylovegrowth']);
+  const lots = [{ advertisers: ['A Inc', 'B Inc', 'C Inc'].map((name, i) => makeAdvertiser({ name, confirmedCount: 3 - i })) }];
+  assert.deepEqual(advertiserNameSeeds(lots), ['A Inc', 'A', 'B Inc', 'B', 'C Inc']);
+  assert.deepEqual(advertiserNameSeeds([]), []);
+});
+
+test('nameQueries: brand first, then up to max extra names, case-insensitive dedupe', () => {
+  assert.deepEqual(nameQueries('babylovegrowth', ['BLG INC', 'BabyLoveGrowth', 'BLG', 'X'], 2), ['babylovegrowth', 'BLG INC', 'BLG']);
+  assert.deepEqual(nameQueries('', ['BLG'], 2), ['BLG']);
+  assert.deepEqual(nameQueries('Acme', undefined, 2), ['Acme']);
+});
+
+// ---- background/log.js ----
+
+test('debug log: ring buffer, levels, safe URLs, formatting', async () => {
+  await clearLog();
+  const origWarn = console.warn;
+  const origError = console.error;
+  const consoleCalls = [];
+  console.warn = (m) => consoleCalls.push(['warn', m]);
+  console.error = (m) => consoleCalls.push(['error', m]);
+  try {
+    for (let i = 0; i < MAX_ENTRIES + 20; i++) log('info', 'scan', `line ${i}`);
+    logWarn('bing', 'HTTP 429 adlibrary.api.bingads.microsoft.com/api/v1/Ads');
+    logError('sw', 'boom');
+    log('bogus', '', 'x');
+  } finally {
+    console.warn = origWarn;
+    console.error = origError;
+  }
+  const entries = await getLog();
+  assert.equal(entries.length, MAX_ENTRIES);
+  assert.equal(entries[entries.length - 1].level, 'info');
+  assert.equal(entries[entries.length - 1].src, 'sw');
+  assert.equal(entries[entries.length - 3].level, 'warn');
+  assert.match(entries[0].t, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(consoleCalls.map((c) => c[0]), ['warn', 'error']);
+  const lines = formatLogLines(entries.slice(-2));
+  assert.match(lines[0], /ERROR \[sw\] boom$/);
+  await clearLog();
+  assert.equal((await getLog()).length, 0);
+});
+
+test('safeUrl never keeps query strings; errText adds the first stack line', () => {
+  assert.equal(
+    safeUrl('https://www.searchapi.io/api/v1/search?engine=google&api_key=SECRET'),
+    'www.searchapi.io/api/v1/search',
+  );
+  assert.equal(safeUrl('not a url?key=SECRET'), 'not a url');
+  const e = new Error('bad');
+  assert.match(errText(e), /^bad \(at /);
+  assert.equal(errText('plain'), 'plain');
 });

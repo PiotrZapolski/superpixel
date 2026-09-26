@@ -13,6 +13,8 @@ import {
   advertiserUrl,
   deepLinks,
   search,
+  searchPlan,
+  MAX_SEARCH_CAPTURES,
 } from '../adapters/tiktok.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
@@ -152,7 +154,12 @@ test('search() with captured payloads', async () => {
   const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
   assert.equal(res.status, 'ok');
   assert.equal(res.platform, 'tiktok');
-  assert.equal(calls.length, 2);
+  // keyword search (query_type 1) + advertiser-name search (query_type 2) + 1 detail
+  assert.equal(calls.length, 3);
+  assert.deepEqual(
+    calls.filter((u) => !u.includes('/ads/detail/')).map((u) => new URL(u).searchParams.get('query_type')),
+    ['1', '2'],
+  );
   const byId = Object.fromEntries(res.ads.map((a) => [a.id, a]));
   assert.equal(byId['1800000000000001'].match, 'confirmed');
   assert.equal(byId['1800000000000002'].match, 'advertiser');
@@ -181,4 +188,65 @@ test('search() reports changed when payloads are unparseable', async () => {
   const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
   assert.equal(res.status, 'changed');
   assert.equal(res.message, 'TikTok changed its response format');
+});
+
+// ---- cross-platform advertiser names (seeds.advertiserNames) ----
+
+test('searchPlan: keyword brand, then up to 2 advertiser names and the brand as query_type 2, max 4', () => {
+  assert.deepEqual(searchPlan('babylovegrowth', 'babylovegrowth', ['BLG INC', 'BLG', 'Babylovegrowth', 'Other']), [
+    { q: 'babylovegrowth', queryType: 1 },
+    { q: 'BLG INC', queryType: 2 },
+    { q: 'BLG', queryType: 2 },
+    { q: 'babylovegrowth', queryType: 2 },
+  ]);
+  assert.deepEqual(searchPlan('Decathlon', 'decathlon', []), [
+    { q: 'Decathlon', queryType: 1 },
+    { q: 'Decathlon', queryType: 2 },
+  ]);
+  assert.deepEqual(searchPlan('Acme Shoes', 'acme', undefined).map((s) => `${s.queryType}:${s.q}`), ['1:Acme Shoes', '2:Acme Shoes', '1:acme']);
+  assert.equal(MAX_SEARCH_CAPTURES, 4);
+});
+
+test('search() bounds search captures at 4 and marks advertiser-name-only ads as name', async () => {
+  const searches = [];
+  const nameOnly = JSON.stringify({
+    code: 0,
+    data: { items: [{ id: '1900000000000009', name: 'BLG INC', adv_biz_id: '7100000000000000009', videos: [] }] },
+  });
+  const ctx = {
+    settings: { tiktokRegions: ['DE', 'FR', 'GB', 'IT'], tiktokDetails: 0 },
+    async capture(url) {
+      const u = new URL(url);
+      searches.push(`${u.searchParams.get('query_type')}:${u.searchParams.get('adv_name')}:${u.searchParams.get('region')}`);
+      const body = u.searchParams.get('adv_name') === 'BLG INC'
+        ? nameOnly
+        : JSON.stringify({ code: 0, data: { items: [] } });
+      return { payloads: [{ url: 'https://library.tiktok.com/api/v1/search?region=all&type=1', status: 200, body }] };
+    },
+    async captureDom() { throw new Error('DOM fallback must not run when JSON was parsed'); },
+  };
+  const res = await search({
+    domain: 'babylovegrowth.ai',
+    brand: 'babylovegrowth',
+    advertiserNames: ['BLG INC', 'BLG', 'Babylovegrowth'],
+  }, ctx);
+  assert.deepEqual(searches, ['1:babylovegrowth:all', '2:BLG INC:all', '2:BLG:all', '2:babylovegrowth:all']);
+  assert.equal(res.status, 'ok');
+  assert.equal(res.ads.length, 1);
+  assert.equal(res.ads[0].match, 'name');
+});
+
+test('search() spends only the leftover budget on per-region retries', async () => {
+  const searches = [];
+  const ctx = {
+    settings: { tiktokRegions: ['DE', 'FR', 'GB', 'IT', 'ES'], tiktokDetails: 0 },
+    async capture(url) {
+      const u = new URL(url);
+      searches.push(`${u.searchParams.get('query_type')}:${u.searchParams.get('region')}`);
+      return { payloads: [{ url: 'https://library.tiktok.com/api/v1/search', status: 200, body: '{"code":0,"data":{"items":[]}}' }] };
+    },
+  };
+  const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
+  assert.deepEqual(searches, ['1:all', '2:all', '1:DE', '1:FR']);
+  assert.equal(res.status, 'empty');
 });

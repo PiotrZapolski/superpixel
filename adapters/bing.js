@@ -2,28 +2,59 @@
 
 import { hostMatches, unwrapRedirect } from '../lib/domain.js';
 import { sleep, toIsoDate } from '../lib/util.js';
-import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds } from '../lib/model.js';
+import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, nameQueries } from '../lib/model.js';
 import { backoff } from '../background/queue.js';
 
 export const meta = { id: 'bing', label: 'Microsoft Advertising (Bing)', coverage: 'EU/EEA-served ads' };
 
 const API = 'https://adlibrary.api.bingads.microsoft.com/api/v1';
 const UI = 'https://adlibrary.ads.microsoft.com';
+/** The Ads endpoint answers 400 "The limit of '24' for Top query has been exceeded" above 24. */
+export const ADS_TOP = 24;
+export const ADS_PAGES = 2;
+export const ADVERTISERS_TOP = 20;
+/** Retries after a 429 before giving up with rate_limited. */
+export const MAX_429_RETRIES = 2;
 
 // ---------------------------------------------------------------------------------------------
 // Pure helpers
 // ---------------------------------------------------------------------------------------------
 
-export function advertisersUrl(brand, top = 20) {
+export function advertisersUrl(brand, top = ADVERTISERS_TOP) {
   return `${API}/Advertisers?searchText=${encodeURIComponent(brand)}&top=${top}&skip=0`;
 }
 
-export function adsByAdvertiserUrl(id, top = 50) {
-  return `${API}/Ads?advertiserId=${encodeURIComponent(String(id))}&top=${top}&skip=0`;
+export function adsByAdvertiserUrl(id, top = ADS_TOP, skip = 0) {
+  return `${API}/Ads?advertiserId=${encodeURIComponent(String(id))}&top=${Math.min(top, ADS_TOP)}&skip=${skip}`;
 }
 
-export function adsBySearchUrl(text, top = 50) {
-  return `${API}/Ads?searchText=${encodeURIComponent(text)}&top=${top}&skip=0`;
+export function adsBySearchUrl(text, top = ADS_TOP, skip = 0) {
+  return `${API}/Ads?searchText=${encodeURIComponent(text)}&top=${Math.min(top, ADS_TOP)}&skip=${skip}`;
+}
+
+/**
+ * Merge advertiser lists from several searches round-robin (so every query gets a slot), dedupe
+ * by id, cap at `max`.
+ * @param {{id:string}[][]} lists
+ * @param {number} max
+ */
+export function mergeAdvertiserLists(lists, max) {
+  const out = [];
+  const seen = new Set();
+  const queues = (lists || []).map((l) => (Array.isArray(l) ? l.slice() : []));
+  while (out.length < max && queues.some((q) => q.length)) {
+    for (const q of queues) {
+      if (out.length >= max) break;
+      while (q.length) {
+        const a = q.shift();
+        if (!a || seen.has(String(a.id))) continue;
+        seen.add(String(a.id));
+        out.push(a);
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 export function advertiserUrl(id) {
@@ -142,14 +173,18 @@ function retryDelay(attempt) {
   return v > 0 ? v : [3000, 10000, 30000][Math.min(attempt, 2)];
 }
 
-/** GET JSON with 429 backoff -> {json, status} | {rateLimited:true} | {status, error} */
+/**
+ * GET JSON with 429 backoff (2 retries) -> {json, status} | {rateLimited:true} | {status, error}.
+ * A 429 is checked before any parsing: its HTML body is never read as a format change.
+ */
 async function getJson(ctx, url) {
   for (let attempt = 0; ; attempt += 1) {
     if (ctx.throttle) await ctx.throttle();
     const res = await ctx.fetch(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
     if (res.status === 429) {
-      if (attempt >= 3) return { rateLimited: true };
-      await sleep(retryDelay(attempt), ctx.signal);
+      if (attempt >= MAX_429_RETRIES) return { rateLimited: true };
+      // ctx.retryDelay: optional override (tests); default queue.js backoff 3s, 10s.
+      await sleep(typeof ctx.retryDelay === 'function' ? ctx.retryDelay(attempt) : retryDelay(attempt), ctx.signal);
       continue;
     }
     if (res.status < 200 || res.status >= 300) return { status: res.status, error: `HTTP ${res.status}` };
@@ -157,6 +192,8 @@ async function getJson(ctx, url) {
     try {
       return { status: res.status, json: JSON.parse(text) };
     } catch {
+      // An HTML throttling page served with 200 is a rate limit, not a format change.
+      if (/too many requests|rate limit/i.test(text)) return { rateLimited: true };
       return { status: res.status, json: null };
     }
   }
@@ -167,6 +204,7 @@ export async function search(seeds, ctx) {
   const brand = (seeds && seeds.brand) || '';
   const settings = (ctx && ctx.settings) || {};
   const links = deepLinks(seeds);
+  const queries = nameQueries(brand, seeds && seeds.advertiserNames, 5);
   let collected = [];
   let advList = [];
   let rateLimited = false;
@@ -186,29 +224,39 @@ export async function search(seeds, ctx) {
   };
 
   try {
-    if (brand) {
-      progress(`Searching advertisers "${brand}"`);
-      const r = await getJson(ctx, advertisersUrl(brand, 20));
+    // Advertiser search for the brand and for each advertiser name found on Google/Meta
+    // (the legal name, e.g. "BLG", often differs from the domain label).
+    const lists = [];
+    for (const q of queries) {
+      if (rateLimited) break;
+      progress(`Searching advertisers "${q}"`);
+      const r = await getJson(ctx, advertisersUrl(q, ADVERTISERS_TOP));
       if (r.rateLimited) rateLimited = true;
-      else if (r.error) error = r.error;
+      else if (r.error) error = error || r.error;
       else {
         const parsed = parseBingAdvertisers(r.json);
         if (parsed === null) changed = true;
-        else advList = parsed.slice(0, Math.max(0, Number(settings.bingAdvertisers) || 6));
+        else lists.push(parsed);
       }
     }
+    advList = mergeAdvertiserLists(lists, Math.max(0, Number(settings.bingAdvertisers) || 6));
     for (let i = 0; i < advList.length && !rateLimited; i += 1) {
-      progress(`Loading ads of ${advList[i].name || advList[i].id} (${i + 1}/${advList.length})`);
-      const r = await getJson(ctx, adsByAdvertiserUrl(advList[i].id, 50));
-      if (r.rateLimited) { rateLimited = true; break; }
-      if (r.error) { error = r.error; continue; }
-      const parsed = parseBingAds(r.json, domain);
-      if (parsed === null) { changed = true; continue; }
-      collected = collected.concat(parsed.ads);
+      for (let page = 0; page < ADS_PAGES && !rateLimited; page += 1) {
+        progress(`Loading ads of ${advList[i].name || advList[i].id} (${i + 1}/${advList.length})${page ? `, page ${page + 1}` : ''}`);
+        const r = await getJson(ctx, adsByAdvertiserUrl(advList[i].id, ADS_TOP, page * ADS_TOP));
+        if (r.rateLimited) { rateLimited = true; break; }
+        if (r.error) { error = r.error; break; }
+        const parsed = parseBingAds(r.json, domain);
+        if (parsed === null) { changed = true; break; }
+        collected = collected.concat(parsed.ads);
+        const seenSoFar = (page + 1) * ADS_TOP;
+        const more = parsed.ads.length >= ADS_TOP && (parsed.total === null || parsed.total > seenSoFar);
+        if (!more) break;
+      }
     }
     if (!rateLimited && domain) {
       progress(`Searching ads mentioning ${domain}`);
-      const r = await getJson(ctx, adsBySearchUrl(domain, 50));
+      const r = await getJson(ctx, adsBySearchUrl(domain, ADS_TOP));
       if (r.rateLimited) rateLimited = true;
       else if (r.error) error = error || r.error;
       else {
@@ -222,7 +270,7 @@ export async function search(seeds, ctx) {
     if (rateLimited) return finish('rate_limited', kept.length ? `Microsoft Ad Library rate limit hit, showing partial results (${kept.length} ads)` : 'Microsoft Ad Library is rate limiting requests, try again later');
     if (kept.length) {
       const confirmed = kept.filter((a) => a.match === 'confirmed').length;
-      return finish('ok', confirmed ? `${kept.length} ads, ${confirmed} pointing to ${domain}` : `No ad points to ${domain}; showing top advertisers named "${brand}"`);
+      return finish('ok', confirmed ? `${kept.length} ads, ${confirmed} pointing to ${domain}` : `No ad points to ${domain}; showing top advertisers named ${queries.map((q) => `"${q}"`).join(' / ')}`);
     }
     if (changed) return finish('changed', 'Microsoft Ad Library changed its response format');
     if (error) return finish('error', `Microsoft Ad Library returned ${error}`);

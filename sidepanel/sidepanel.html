@@ -85,6 +85,17 @@
     <label class="check-row"><input type="checkbox" id="setting-showScanTabs"> Show scan tabs</label>
   </fieldset>
 
+  <fieldset class="settings-group">
+    <legend>Debug log</legend>
+    <div class="drawer-actions">
+      <button id="copy-log-btn" type="button" class="secondary">Copy debug log</button>
+      <button id="clear-log-btn" type="button" class="secondary">Clear log</button>
+    </div>
+    <label class="check-row"><input type="checkbox" id="show-log-toggle"> Show log</label>
+    <pre id="debug-log-view" class="debug-log" hidden></pre>
+    <p id="debug-log-status" class="settings-status" aria-live="polite"></p>
+  </fieldset>
+
   <div class="drawer-actions">
     <button id="settings-save-btn" type="button">Save settings</button>
     <button id="clear-cache-btn" type="button" class="secondary">Clear cache</button>

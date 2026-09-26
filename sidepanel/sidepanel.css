@@ -694,3 +694,42 @@ main {
 .app-title img {
   border-radius: 5px;
 }
+
+/* Advertisers with role 'other' (affiliates, resellers, brand bidders), collapsed by default. */
+.other-advertisers {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  margin-top: 8px;
+}
+
+.other-advertisers-summary {
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.other-advertisers-hint {
+  margin: 0 8px 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.other-advertisers-list {
+  padding: 0 8px 8px;
+}
+
+/* Debug log viewer in the settings drawer. */
+.debug-log {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.35;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre;
+  margin: 6px 0 0;
+  padding: 6px;
+  background: var(--chip-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}

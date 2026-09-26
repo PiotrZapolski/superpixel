@@ -10,6 +10,7 @@ import {
   parseLinkedinDetail,
   splitCards,
   companyIdsFromSocial,
+  isAdLibraryPage,
   search,
 } from '../adapters/linkedin.js';
 
@@ -143,4 +144,54 @@ test('search() reports changed for unrecognised HTML', async () => {
   };
   const res = await search({ domain: 'decathlon.com', brand: 'Decathlon', social: { linkedin: [] } }, ctx);
   assert.equal(res.status, 'changed');
+});
+
+// ---- live finding 2026-09-26: a brand without ads gets a normal page with 0 cards ----
+
+const EMPTY_HTML = fixture('linkedin-empty.html');
+
+test('isAdLibraryPage recognises an empty search page, in any language', () => {
+  assert.equal(parseLinkedinSearch(EMPTY_HTML).length, 0);
+  assert.equal(parsePaginationMeta(EMPTY_HTML), null);
+  assert.equal(isAdLibraryPage(EMPTY_HTML), true);
+  assert.equal(isAdLibraryPage(SEARCH_HTML), true);
+  // Localised title only, no form.
+  assert.equal(isAdLibraryPage('<html><head><title>Biblioteca de anuncios | LinkedIn</title></head><body><a href="/ad-library/home">x</a></body></html>'), true);
+  // Results header "(0)" only.
+  assert.equal(isAdLibraryPage('<div class="ad-library"><h1>Anzeigen (0)</h1></div>'), true);
+  assert.equal(isAdLibraryPage('<html><body>something else</body></html>'), false);
+  assert.equal(isAdLibraryPage('<html><head><title>LinkedIn</title></head><body>Sign in</body></html>'), false);
+});
+
+test('search() reports empty (not changed) for an Ad Library page without cards', async () => {
+  const seen = [];
+  const ctx = {
+    settings: { linkedinPages: 2, linkedinDetails: 5 },
+    async fetch(url) { seen.push(url); return fakeResponse(EMPTY_HTML, { url }); },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'babylovegrowth', social: { linkedin: [] } }, ctx);
+  assert.equal(res.status, 'empty');
+  assert.match(res.message, /^No LinkedIn ads found for babylovegrowth/);
+  assert.equal(seen.length, 1);
+});
+
+test('search() adds accountOwner searches for up to 2 advertiser names', async () => {
+  const owners = [];
+  const ctx = {
+    settings: { linkedinPages: 1, linkedinDetails: 0 },
+    async fetch(url) {
+      const o = new URL(url).searchParams.get('accountOwner');
+      if (o) owners.push(o);
+      return fakeResponse(EMPTY_HTML, { url });
+    },
+  };
+  const res = await search({
+    domain: 'babylovegrowth.ai',
+    brand: 'babylovegrowth',
+    advertiserNames: ['BLG INC', 'Babylovegrowth', 'BLG', 'Other'],
+    social: { linkedin: [] },
+  }, ctx);
+  assert.deepEqual(owners, ['babylovegrowth', 'BLG INC', 'BLG']);
+  assert.equal(res.status, 'empty');
+  assert.match(res.message, /babylovegrowth, BLG INC, BLG/);
 });

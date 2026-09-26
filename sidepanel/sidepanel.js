@@ -36,7 +36,7 @@ const MORE_LIBRARIES = [
 ];
 
 const CSV_COLUMNS = [
-  'platform', 'advertiser_id', 'advertiser_name', 'ad_id', 'match', 'format', 'title', 'text',
+  'platform', 'advertiser_id', 'advertiser_name', 'advertiser_role', 'ad_id', 'match', 'format', 'title', 'text',
   'landing_url', 'display_url', 'first_shown', 'last_shown', 'is_active', 'placements',
   'detail_url', 'source',
 ];
@@ -68,6 +68,11 @@ const settingsSaveBtn = document.getElementById('settings-save-btn');
 const clearCacheBtn = document.getElementById('clear-cache-btn');
 const settingsStatusEl = document.getElementById('settings-status');
 const tiktokRegionsEl = document.getElementById('tiktok-regions');
+const copyLogBtn = document.getElementById('copy-log-btn');
+const clearLogBtn = document.getElementById('clear-log-btn');
+const showLogToggle = document.getElementById('show-log-toggle');
+const debugLogViewEl = document.getElementById('debug-log-view');
+const debugLogStatusEl = document.getElementById('debug-log-status');
 
 const tagsGroupsEl = document.getElementById('tags-groups');
 const brandSignalsEl = document.getElementById('brand-signals');
@@ -169,6 +174,12 @@ function handleMessage(msg) {
     case 'tags':
       onTags(msg.tags, msg.seeds);
       break;
+    case 'seeds':
+      onSeeds(msg.seeds);
+      break;
+    case 'log':
+      onLog(msg.entries);
+      break;
     case 'platformStart':
       onPlatformStart(msg.id, msg.label, msg.coverage);
       break;
@@ -245,6 +256,13 @@ function onTags(tags, seeds) {
   renderTags(tags, seeds);
 }
 
+// Seeds updated after Google + Meta (advertiserNames for the name-based libraries).
+function onSeeds(seeds) {
+  if (!seeds) return;
+  if (currentScan) currentScan.seeds = seeds;
+  renderBrandSignals(seeds);
+}
+
 function onPlatformStart(id, label, coverage) {
   const card = getOrCreateCard(id);
   card.labelEl.textContent = label || id;
@@ -266,7 +284,8 @@ function onProgress(id, text) {
 function onPlatformResult(result) {
   if (!result || !result.platform) return;
   if (!currentScan) {
-    currentScan = { domain: domainInput.value.trim(), at: new Date().toISOString(), tags: [], seeds: null, results: [] };
+    // Results of a scan this panel did not start (reattached background scan).
+    currentScan = { domain: domainInput.value.trim(), at: new Date().toISOString(), tags: [], seeds: null, results: [], partial: true };
   }
   const idx = currentScan.results.findIndex((r) => r.platform === result.platform);
   if (idx >= 0) currentScan.results[idx] = result;
@@ -274,10 +293,23 @@ function onPlatformResult(result) {
   renderPlatformCard(result);
 }
 
+function formatSummary(summary) {
+  if (!summary || typeof summary !== 'object') return summary ? String(summary) : 'Done.';
+  const secs = Math.round((Number(summary.ms) || 0) / 1000);
+  return (summary.stopped ? 'Stopped. ' : 'Done. ') +
+    (summary.totalAds || 0) + ' ads, ' + (summary.confirmedAds || 0) + ' confirmed, ' + secs + 's.';
+}
+
 function onDone(summary) {
   scanning = false;
   updateScanUi();
-  phaseTextEl.textContent = summary || 'Done.';
+  phaseTextEl.textContent = formatSummary(summary);
+  if (currentScan && currentScan.partial) {
+    // Only part of this scan was streamed here: load the complete stored result.
+    currentScan = null;
+    send({ type: 'getLast' });
+    return;
+  }
   if (currentScan) {
     lastData = currentScan;
     currentScan = null;
@@ -395,6 +427,12 @@ function renderBrandSignals(seeds) {
     for (const c of seeds.brandCandidates) chips.appendChild(el('span', { className: 'chip', text: c }));
     wrap.appendChild(chips);
   }
+  if (seeds.advertiserNames && seeds.advertiserNames.length) {
+    wrap.appendChild(el('p', { className: 'brand-main', text: 'Advertiser names (from Google / Meta):' }));
+    const chips = el('div', { className: 'chip-row' });
+    for (const n of seeds.advertiserNames) chips.appendChild(el('span', { className: 'chip', text: n }));
+    wrap.appendChild(chips);
+  }
   if (seeds.social) {
     const linkRow = el('div', { className: 'chip-row' });
     for (const urls of Object.values(seeds.social)) {
@@ -508,6 +546,8 @@ function renderPlatformBody(card, result) {
 
   const grouped = new Set();
   let anyRendered = false;
+  // Small accounts (role 'other': affiliates, resellers, brand bidders) go into one collapsed block.
+  const otherBlocks = [];
 
   for (const adv of advertisers) {
     const advAds = adsByAdvertiser.get(adv.id) || [];
@@ -515,8 +555,26 @@ function renderPlatformBody(card, result) {
     const confirmedCount = advAds.filter((a) => a.match === 'confirmed').length;
     if (onlyConfirmed && confirmedCount === 0) continue;
     const visibleAds = onlyConfirmed ? advAds.filter((a) => a.match === 'confirmed') : advAds;
-    card.bodyEl.appendChild(renderAdvertiserBlock(adv, visibleAds, confirmedCount));
+    const block = renderAdvertiserBlock(adv, visibleAds, confirmedCount);
+    if (adv.role === 'other') {
+      otherBlocks.push(block);
+    } else {
+      card.bodyEl.appendChild(block);
+    }
     anyRendered = true;
+  }
+
+  if (otherBlocks.length) {
+    const group = el('details', { className: 'other-advertisers' });
+    group.appendChild(el('summary', {
+      className: 'other-advertisers-summary',
+      text: 'Other accounts running ads to this domain (' + otherBlocks.length + ')',
+    }));
+    group.appendChild(el('p', { className: 'other-advertisers-hint', text: 'Often affiliates, resellers or brand bidders' }));
+    const list = el('div', { className: 'other-advertisers-list' });
+    for (const block of otherBlocks) list.appendChild(block);
+    group.appendChild(list);
+    card.bodyEl.appendChild(group);
   }
 
   const otherAds = [];
@@ -706,6 +764,64 @@ function collectSettingsForm() {
   };
 }
 
+// ---- debug log ----
+
+const LOG_VIEW_LINES = 100;
+let pendingLogCopy = false;
+
+// Same format as background/log.js formatLogLines.
+function formatLogLines(entries) {
+  return (Array.isArray(entries) ? entries : []).map(
+    (e) => e.t + ' ' + String(e.level || 'info').toUpperCase() + ' [' + e.src + '] ' + e.msg,
+  );
+}
+
+function setLogStatus(text) {
+  debugLogStatusEl.textContent = text;
+  setTimeout(() => {
+    if (debugLogStatusEl.textContent === text) debugLogStatusEl.textContent = '';
+  }, 2000);
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback when the clipboard API refuses (document not focused).
+    const ta = el('textarea', { attrs: { readonly: '', style: 'position:fixed;left:-9999px' } });
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  }
+}
+
+function onLog(entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (showLogToggle.checked) {
+    debugLogViewEl.textContent = formatLogLines(list.slice(-LOG_VIEW_LINES)).join('\n') || '(empty)';
+    debugLogViewEl.scrollTop = debugLogViewEl.scrollHeight;
+  }
+  if (pendingLogCopy) {
+    pendingLogCopy = false;
+    if (!list.length) {
+      setLogStatus('Log is empty.');
+      return;
+    }
+    copyText(formatLogLines(list).join('\n')).then((ok) => {
+      setLogStatus(ok ? 'Copied ' + list.length + ' lines.' : 'Copy failed.');
+    });
+  }
+}
+
 function openSettings() {
   settingsBackdrop.hidden = false;
   settingsDrawerEl.hidden = false;
@@ -730,11 +846,16 @@ function csvField(value) {
 function buildCsv(data) {
   const rows = [CSV_COLUMNS.join(',')];
   for (const result of data.results || []) {
+    const roles = new Map();
+    for (const adv of result.advertisers || []) {
+      if (adv && adv.id) roles.set(adv.id, adv.role || 'primary');
+    }
     for (const ad of result.ads || []) {
       const row = [
         ad.platform || result.platform || '',
         ad.advertiserId || '',
         ad.advertiserName || '',
+        roles.get(ad.advertiserId) || '',
         ad.id || '',
         ad.match || '',
         ad.format || '',
@@ -841,6 +962,21 @@ clearCacheBtn.addEventListener('click', () => {
   setTimeout(() => {
     settingsStatusEl.textContent = '';
   }, 1500);
+});
+
+copyLogBtn.addEventListener('click', () => {
+  pendingLogCopy = true;
+  send({ type: 'getLog' });
+});
+
+clearLogBtn.addEventListener('click', () => {
+  send({ type: 'clearLog' });
+  setLogStatus('Log cleared.');
+});
+
+showLogToggle.addEventListener('change', () => {
+  debugLogViewEl.hidden = !showLogToggle.checked;
+  if (showLogToggle.checked) send({ type: 'getLog' });
 });
 
 onlyConfirmedToggle.addEventListener('change', () => {

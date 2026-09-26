@@ -213,3 +213,27 @@ test('search maps an exact {} body to empty', async () => {
   const res = await search({ domain: 'decathlon.com' }, ctx);
   assert.equal(res.status, 'empty');
 });
+
+test('search marks the owner primary and small accounts (affiliates, brand bidders) other', async () => {
+  // babylovegrowth.ai, live 2026-09-26: BLG INC 116 creatives + 12 accounts with 1 ad each, all
+  // pointing to the domain.
+  const rows = [];
+  for (let i = 0; i < 116; i++) {
+    rows.push({ 1: 'AR00000000000000000001', 2: `CR1${String(i).padStart(20, '0')}`, 4: 2, 12: 'BLG INC', 14: 'babylovegrowth.ai' });
+  }
+  for (let j = 0; j < 12; j++) {
+    rows.push({ 1: `AR9${String(j).padStart(19, '0')}`, 2: `CR2${String(j).padStart(20, '0')}`, 4: 1, 12: `Reseller ${j}`, 14: 'babylovegrowth.ai' });
+  }
+  const ctx = fakeCtx((url, init) => {
+    if (!init.method) return fakeResponse("xsrfToken: 'T'");
+    const req = JSON.parse(new URLSearchParams(init.body).get('f.req'));
+    return fakeResponse(JSON.stringify(req['3']['14'] ? { 1: [] } : { 1: rows }));
+  });
+  const res = await search({ domain: 'babylovegrowth.ai' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.equal(res.advertisers.length, 13);
+  assert.equal(res.advertisers[0].name, 'BLG INC');
+  assert.equal(res.advertisers[0].role, 'primary');
+  assert.ok(res.advertisers.slice(1).every((a) => a.role === 'other'));
+  assert.ok(res.ads.every((a) => a.match === 'confirmed'));
+});

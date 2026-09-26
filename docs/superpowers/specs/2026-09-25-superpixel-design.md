@@ -249,13 +249,30 @@ parallel (each has its own throttle key, so they do not block each other; captur
 (`source:'searchapi'`) -> cache result per (platform, domain) for `cacheHours` unless `force`.
 Everything also stored as `lastScan` in chrome.storage.local so reopening the panel shows it.
 
-The SW may be suspended; the open port keeps it alive during a scan. No long `setTimeout`
-chains outside an active port.
+Update 2026-09-26 (live findings): adapters run in two waves. Wave 1 = google + meta in
+parallel. Then `seeds.advertiserNames` = names of their `role:'primary'` advertisers with
+confirmed ads plus a variant without legal suffixes (INC, LLC, GMBH, SP. Z O.O., ...), max 5
+(`advertiserNameSeeds` in lib/model.js), emitted as `{type:'seeds', seeds}`. Wave 2 = tiktok,
+linkedin, bing, snap in parallel, which also search by those names (the domain label is often
+not the advertiser name: babylovegrowth.ai is "BLG INC" on Google). Advertisers carry
+`role:'primary'|'other'` (`assignRoles`: >= 10% of the platform's ads or >= 5 ads, the top
+advertiser always primary); the panel groups 'other' accounts in one collapsed block.
+
+Closing the side panel aborts the scan only during layer A. After layer A the scan finishes in
+the background and saves cache + `lastScan`; a panel that reconnects meanwhile is reattached.
+Only an explicit Stop (or a new scan) aborts it. The SW may still be suspended by Chrome when no
+port is open (risk accepted).
+
+Debug log (background/log.js): ring buffer of the last 500 `{t, level, src, msg}` entries in
+chrome.storage.local `debugLog` (debounced 1s), warnings/errors mirrored to the console. Logs scan
+and adapter start/finish, non-2xx HTTP statuses (host + path only, never query strings), capture
+tab open/close, caught and unhandled errors. Port: `{type:'getLog'}` -> `{type:'log', entries}`,
+`{type:'clearLog'}`. Settings drawer: Copy debug log, Clear log, Show log (last 100 lines).
 
 ## 4. Adapters
 
 Common: throttle intervals - google 900ms, meta capture-bound, tiktok capture-bound,
-linkedin 2500ms, bing 400ms, snap 3000ms. Backoff for 429: 3s, 10s, 30s then `rate_limited`.
+linkedin 2500ms, bing 1500ms (it answers 429 with an HTML body after ~5 quick calls), snap 3000ms. Backoff for 429: 3s, 10s, 30s then `rate_limited` (bing: 2 retries).
 
 ### 4.1 google.js
 
@@ -348,8 +365,8 @@ Coverage label: "EU/EEA, UK, CH only".
 ### 4.5 bing.js
 
 Coverage "EU/EEA-served ads".
-1. `Advertisers?searchText=<brand>&top=20&skip=0` -> up to `bingAdvertisers` advertisers.
-2. For each: `Ads?advertiserId=<id>&top=50&skip=0` -> ads; also `Ads?searchText=<domain>&top=50&skip=0`.
+1. `Advertisers?searchText=<q>&top=20&skip=0` for the brand and each `seeds.advertiserNames` entry, merged round-robin and deduped -> up to `bingAdvertisers` advertisers.
+2. For each: `Ads?advertiserId=<id>&top=24&skip=0` (and `skip=24`, max 2 pages; top > 24 is HTTP 400) -> ads; also `Ads?searchText=<domain>&top=24&skip=0`.
 3. `parseBingAds(json)`: id AdId, advertiser, title Title, text Description, displayUrl DisplayUrl,
    landingUrl DestinationUrl, detailUrl `https://adlibrary.ads.microsoft.com/ad-details?adId=<id>`,
    format from AssetJson presence (`text` default).

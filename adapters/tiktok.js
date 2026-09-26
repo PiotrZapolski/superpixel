@@ -42,6 +42,36 @@ export function buildSearchUrl({ region = 'all', q = '', now = Date.now(), query
   return `${BASE}/ads?${p.toString()}`;
 }
 
+/** Max search-page captures (including DOM fallbacks) before the detail phase. */
+export const MAX_SEARCH_CAPTURES = 4;
+
+/**
+ * Ordered search plan (region=all): keyword search for the brand (query_type 1), advertiser-name
+ * searches (query_type 2) for up to 2 advertiser names from Google/Meta, then for the brand, then
+ * the domain label as keyword when it differs. Deduped, capped at MAX_SEARCH_CAPTURES.
+ * @returns {{q:string, queryType:1|2}[]}
+ */
+export function searchPlan(brand, label, advertiserNames) {
+  const plan = [];
+  const seen = new Set();
+  const add = (q, queryType) => {
+    const s = String(q || '').trim();
+    const k = `${queryType}|${s.toLowerCase()}`;
+    if (!s || seen.has(k)) return;
+    seen.add(k);
+    plan.push({ q: s, queryType });
+  };
+  const b = String(brand || '').trim().toLowerCase();
+  const names = (Array.isArray(advertiserNames) ? advertiserNames : [])
+    .map((n) => String(n || '').trim())
+    .filter((n) => n && n.toLowerCase() !== b);
+  add(brand, 1);
+  for (const n of uniq(names).slice(0, 2)) add(n, 2);
+  add(brand, 2);
+  add(label, 1);
+  return plan.slice(0, MAX_SEARCH_CAPTURES);
+}
+
 export function detailUrlFor(id) {
   return `${BASE}/ads/detail/?ad_id=${encodeURIComponent(String(id))}`;
 }
@@ -295,7 +325,8 @@ export function mapTiktokAd(raw, domain) {
     previewUrl: raw.previewUrl || '',
     detailUrl: detailUrlFor(raw.id),
     placements: ['tiktok'],
-    match: confirmed ? 'confirmed' : 'keyword',
+    // viaName: found only by an advertiser-name search (query_type 2).
+    match: confirmed ? 'confirmed' : raw.viaName ? 'name' : 'keyword',
     source: 'native',
   });
 }
@@ -322,8 +353,10 @@ export async function search(seeds, ctx) {
     if (!ad || !ad.id) return;
     const prev = state.raw.get(ad.id);
     if (!prev) { state.raw.set(ad.id, ad); return; }
+    const viaName = Boolean(prev.viaName && ad.viaName);
     for (const [k, v] of Object.entries(ad)) if (v && !prev[k]) prev[k] = v;
     if (prev.fromDom && !ad.fromDom) prev.fromDom = false;
+    prev.viaName = viaName;
   };
 
   const finish = (status, message) => {
@@ -342,17 +375,19 @@ export async function search(seeds, ctx) {
     }
     const brand = (seeds && seeds.brand) || domainLabel(domain);
     const label = domainLabel(domain);
-    const queries = [];
-    for (const q of [brand, label]) {
-      if (q && !queries.some((x) => x.toLowerCase() === String(q).toLowerCase())) queries.push(String(q));
-    }
     const regions = Array.isArray(settings.tiktokRegions) ? settings.tiktokRegions : [];
+    const plan = searchPlan(brand, label, seeds && seeds.advertiserNames);
+    let budget = MAX_SEARCH_CAPTURES;
 
-    // One capture of the search page; returns number of ads it contributed (or -1 if no JSON).
-    const searchOnce = async (region, q) => {
-      const url = buildSearchUrl({ region, q, now: Date.now() });
+    // One capture of the search page; returns number of ads it contributed (-1 if no JSON,
+    // -2 when the search-capture budget is used up).
+    const searchOnce = async (region, q, queryType = 1) => {
+      if (budget <= 0) return -2;
+      budget -= 1;
+      const viaName = queryType === 2;
+      const url = buildSearchUrl({ region, q, now: Date.now(), queryType });
       if (ctx.throttle) await ctx.throttle();
-      progress(`Searching "${q}" (region ${region})`);
+      progress(`Searching ${viaName ? 'advertiser ' : ''}"${q}" (region ${region})`);
       const cap = (await ctx.capture(url, { platform: 'tiktok', waitMs: 8000 })) || {};
       let parsedAny = false;
       let count = 0;
@@ -365,33 +400,37 @@ export async function search(seeds, ctx) {
         if (!r.ok) continue;
         parsedAny = true;
         state.anyOk = true;
-        for (const ad of r.ads) { if (!state.raw.has(ad.id)) count += 1; addRaw(ad); }
+        for (const ad of r.ads) { if (!state.raw.has(ad.id)) count += 1; addRaw({ ...ad, viaName }); }
       }
-      if (!parsedAny && !state.rateLimited && typeof ctx.captureDom === 'function') {
+      if (!parsedAny && !state.rateLimited && budget > 0 && typeof ctx.captureDom === 'function') {
+        budget -= 1;
         progress('Reading TikTok results from the page');
         const dom = (await ctx.captureDom(url, { waitMs: 8000 })) || {};
         const ids = adIdsFromHrefs(dom.hrefs);
         if (ids.length) {
           state.anyOk = true;
           parsedAny = true;
-          for (const id of ids) { if (!state.raw.has(id)) count += 1; addRaw({ id, advertiserName: '', fromDom: true }); }
+          for (const id of ids) { if (!state.raw.has(id)) count += 1; addRaw({ id, advertiserName: '', fromDom: true, viaName }); }
         }
       }
       return parsedAny ? count : -1;
     };
 
-    for (const q of queries) {
-      const n = await searchOnce('all', q);
-      if (state.rateLimited) break;
-      if (n > 0) continue;
+    // Planned searches with region=all first (keyword + advertiser-name searches).
+    for (const step of plan) {
+      await searchOnce('all', step.q, step.queryType);
+      if (state.rateLimited || budget <= 0) break;
+    }
+    // Nothing at all with region=all: retry the brand keyword search per region with what is left
+    // of the budget (stop after 3 empty regions in a row).
+    if (!state.rateLimited && !state.raw.size && plan.length) {
       let zeroStreak = 0;
       for (const region of regions) {
-        const c = await searchOnce(region, q);
-        if (state.rateLimited) break;
+        const c = await searchOnce(region, plan[0].q, plan[0].queryType);
+        if (c === -2 || state.rateLimited) break;
         zeroStreak = c > 0 ? 0 : zeroStreak + 1;
         if (zeroStreak >= 3) break;
       }
-      if (state.rateLimited) break;
     }
 
     // Details: landing URL, advertiser, paid-by. Ads without a landing first.

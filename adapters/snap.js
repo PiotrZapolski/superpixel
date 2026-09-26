@@ -8,7 +8,7 @@
 
 import { hostMatches, unwrapRedirect } from '../lib/domain.js';
 import { walkJson, toIsoDate, sleep } from '../lib/util.js';
-import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds } from '../lib/model.js';
+import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, nameQueries } from '../lib/model.js';
 
 export const meta = { id: 'snap', label: 'Snapchat', coverage: 'EU only' };
 
@@ -160,31 +160,42 @@ export async function search(seeds, ctx) {
   };
 
   try {
-    if (!brand) return finish('skipped', 'No brand name to search on Snapchat');
-    const body = buildSnapBody(brand, Date.now());
-    let url = SEARCH_URL;
+    // paying_advertiser_name: the brand plus up to 2 advertiser names found on Google/Meta,
+    // sequential (ctx.throttle spaces the calls).
+    const names = nameQueries(brand, seeds && seeds.advertiserNames, 2);
+    if (!names.length) return finish('skipped', 'No brand name to search on Snapchat');
     let ok = false;
-    for (let page = 0; page < 3 && url; page += 1) {
-      progress(`Searching paying advertiser "${brand}"${page ? ` (page ${page + 1})` : ''}`);
-      const r = await postSearch(ctx, url, body);
-      if (r.rateLimited) {
-        return finish('rate_limited', collected.length ? `Snapchat rate limit hit, showing partial results (${collected.length} ads)` : 'Snapchat Ads Library is rate limiting requests, try again later');
+    let firstFailure = null;
+    for (let n = 0; n < names.length; n += 1) {
+      const name = names[n];
+      const body = buildSnapBody(name, Date.now());
+      let url = SEARCH_URL;
+      const maxPages = n === 0 ? 3 : 1; // extra names: first page only
+      for (let page = 0; page < maxPages && url; page += 1) {
+        progress(`Searching paying advertiser "${name}"${page ? ` (page ${page + 1})` : ''}`);
+        const r = await postSearch(ctx, url, body);
+        if (r.rateLimited) {
+          return finish('rate_limited', collected.length ? `Snapchat rate limit hit, showing partial results (${collected.length} ads)` : 'Snapchat Ads Library is rate limiting requests, try again later');
+        }
+        if (r.status < 200 || r.status >= 300) {
+          if (!firstFailure) firstFailure = ['error', `Snapchat Ads Library returned HTTP ${r.status}`];
+          break;
+        }
+        const parsed = parseSnapAds(r.json, domain);
+        if (!parsed.ok) {
+          if (!firstFailure) firstFailure = ['changed', 'Snapchat changed its response format'];
+          break;
+        }
+        ok = true;
+        collected = collected.concat(parsed.ads);
+        url = parsed.nextLink && /^https:\/\/adsapi\.snapchat\.com\//i.test(parsed.nextLink) && parsed.nextLink !== url ? parsed.nextLink : '';
       }
-      if (r.status < 200 || r.status >= 300) {
-        if (collected.length) break;
-        return finish('error', `Snapchat Ads Library returned HTTP ${r.status}`);
-      }
-      const parsed = parseSnapAds(r.json, domain);
-      if (!parsed.ok) {
-        if (collected.length) break;
-        return finish('changed', 'Snapchat changed its response format');
-      }
-      ok = true;
-      collected = collected.concat(parsed.ads);
-      url = parsed.nextLink && /^https:\/\/adsapi\.snapchat\.com\//i.test(parsed.nextLink) && parsed.nextLink !== url ? parsed.nextLink : '';
     }
-    if (collected.length) return finish('ok', `${collected.length} ads paid by advertisers named "${brand}"`);
-    return finish(ok ? 'empty' : 'error', ok ? 'No Snapchat ads found for this advertiser name in the EU' : 'No response from Snapchat');
+    const quoted = names.map((x) => `"${x}"`).join(' / ');
+    if (collected.length) return finish('ok', `${dedupeAds(collected).length} ads paid by advertisers named ${quoted}`);
+    if (ok) return finish('empty', `No Snapchat ads found in the EU for advertiser ${quoted}`);
+    if (firstFailure) return finish(firstFailure[0], firstFailure[1]);
+    return finish('error', 'No response from Snapchat');
   } catch (err) {
     if (ctx && ctx.signal && ctx.signal.aborted) return finish('error', 'Stopped');
     return finish('error', `Snapchat search failed: ${(err && err.message) || err}`);
