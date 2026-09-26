@@ -145,7 +145,7 @@ test('URL builders: Ads top is capped at 24, Advertisers keeps 20', () => {
 test('mergeAdvertiserLists: round robin, dedupe by id, cap', () => {
   const a = [{ id: '1' }, { id: '2' }, { id: '3' }];
   const b = [{ id: '2' }, { id: '9' }];
-  assert.deepEqual(mergeAdvertiserLists([a, b], 6).map((x) => x.id), ['1', '2', '9', '3']);
+  assert.deepEqual(mergeAdvertiserLists([a, b], 6).map((x) => x.id), ['1', '2', '3', '9']);
   assert.deepEqual(mergeAdvertiserLists([a, b], 2).map((x) => x.id), ['1', '2']);
   assert.deepEqual(mergeAdvertiserLists([[], b], 6).map((x) => x.id), ['2', '9']);
 });

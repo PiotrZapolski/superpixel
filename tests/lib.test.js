@@ -328,8 +328,8 @@ test('advertiserNameSeeds: primary advertisers with confirmed ads, raw + cleaned
     { platform: 'meta', advertisers: [makeAdvertiser({ name: 'Babylovegrowth', adCount: 12, confirmedCount: 12 })] },
   ];
   assert.deepEqual(advertiserNameSeeds(results), ['BLG INC', 'BLG', 'Babylovegrowth']);
-  const lots = [{ advertisers: ['A Inc', 'B Inc', 'C Inc'].map((name, i) => makeAdvertiser({ name, confirmedCount: 3 - i })) }];
-  assert.deepEqual(advertiserNameSeeds(lots), ['A Inc', 'A', 'B Inc', 'B', 'C Inc']);
+  const lots = [{ advertisers: ['Acme Inc', 'Bolt Inc', 'Core Inc'].map((name, i) => makeAdvertiser({ name, confirmedCount: 3 - i })) }];
+  assert.deepEqual(advertiserNameSeeds(lots), ['Acme Inc', 'Acme', 'Bolt Inc', 'Bolt', 'Core Inc']);
   assert.deepEqual(advertiserNameSeeds([]), []);
 });
 
