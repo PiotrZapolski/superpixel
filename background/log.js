@@ -12,6 +12,18 @@ const LEVELS = new Set(['info', 'warn', 'error']);
 let entries = [];
 let loadPromise = null;
 let persistTimer = null;
+const listeners = new Set();
+
+/**
+ * Register a callback that receives every new entry (used by remote-log.js).
+ * @param {(entry:{t:string, level:string, src:string, msg:string})=>void} fn
+ * @returns {() => void} unsubscribe
+ */
+export function onEntry(fn) {
+  if (typeof fn !== 'function') return () => {};
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
 
 function hasStorage() {
   return typeof chrome !== 'undefined' && !!(chrome.storage && chrome.storage.local);
@@ -91,6 +103,13 @@ export function log(level, src, msg) {
     else if (lvl === 'warn') console.warn(`[superpixel ${entry.src}] ${entry.msg}`);
   } catch {
     // no console
+  }
+  for (const fn of listeners) {
+    try {
+      fn(entry);
+    } catch {
+      // a listener must never break logging
+    }
   }
   ensureLoaded();
   schedulePersist();

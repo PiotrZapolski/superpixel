@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: superpixel-log
+    env_file: .env
+    volumes:
+      - superpixel_data:/data
+    restart: unless-stopped
+
+volumes:
+  superpixel_data:

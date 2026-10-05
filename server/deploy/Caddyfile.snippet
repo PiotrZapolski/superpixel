@@ -1,0 +1,20 @@
+superpixel.run {
+    encode zstd gzip
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+    }
+
+    request_body {
+        max_size 300KB
+    }
+
+    reverse_proxy superpixel-log:8000 {
+        header_up X-Forwarded-Proto https
+    }
+}
+
+www.superpixel.run {
+    redir https://superpixel.run{uri} 301
+}

@@ -272,6 +272,34 @@ code {
   border-radius: var(--radius-sm);
 }
 
+/* ---- remote log consent banner ---- */
+
+.consent-banner {
+  margin: 10px 12px 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--accent-1);
+  border-radius: var(--radius-sm);
+}
+
+.consent-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.consent-body {
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.consent-actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* ---- summary strip ---- */
 
 .summary-strip {

@@ -77,11 +77,27 @@ Every ad is tagged with how confident Superpixel is that it belongs to the scann
 
 ## Privacy
 
-Everything runs locally in your browser. There is no Superpixel server: scans are performed
-directly from your machine against the public ad library endpoints, and results are stored only in
-your browser's local extension storage. The optional SearchAPI key, if you add one, is stored
-locally in `chrome.storage.local` and is sent only to `searchapi.io` as a fallback request, never
-anywhere else.
+Everything runs locally in your browser. Scans are performed directly from your machine against
+the public ad library endpoints, and results are stored only in your browser's local extension
+storage. The optional SearchAPI key, if you add one, is stored locally in `chrome.storage.local`
+and is sent only to `searchapi.io` as a fallback request, never anywhere else. The only data that
+can reach a Superpixel server is the opt-in remote debug log below.
+
+## Remote debug log
+
+Opt-in only. The first time the side panel opens after install (or after the update that added
+this), a banner asks "Help fix broken scans?". Nothing is sent unless you click "Send logs"; the
+question is asked once.
+
+When enabled, after each scan the extension sends one batch to `https://superpixel.run/v1/logs`
+with: a random install id, the extension version, a scan id, the scanned domain, the warnings and
+errors from the debug log and each platform's final status line (for example
+"Adapter finish: rate_limited, 0 ads"). Warnings outside a scan are sent in a batch about 30
+seconds later. Log lines never contain query strings. No settings, keys, ads or page content are
+sent. A failed send is dropped, not retried.
+
+Turn it off anytime: Settings > Debug > uncheck "Send warnings to superpixel.run", then
+"Save settings".
 
 ## Limitations
 
@@ -121,7 +137,7 @@ Local runs of Node are not required to contribute; CI is the gate.
 
 ```
 manifest.json
-background/       service worker, scan orchestration, caching, settings, throttling
+background/       service worker, scan orchestration, caching, settings, throttling, debug log
 lib/              shared pure helpers: domain handling, the data model, HTML parsing, utilities
 detect/           on site tag signatures and detection, seed extraction (brand, socials, IDs)
 adapters/         one file per ad library, plus an optional SearchAPI.io fallback

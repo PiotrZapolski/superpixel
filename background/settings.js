@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   useSearchapiFallback: true,
   showScanTabs: false,
   cacheHours: 24,
+  // Remote debug log consent: null = never asked, true = granted, false = declined.
+  remoteLog: null,
 });
 
 function merge(base, stored) {

@@ -15,6 +15,7 @@ import { loadSettings } from './settings.js';
 import * as cache from './cache.js';
 import { getThrottle } from './queue.js';
 import { logInfo, logWarn, logError, safeUrl, errText } from './log.js';
+import { remoteLog } from './remote-log.js';
 import {
   openCaptureTab,
   openCaptureTabDom,
@@ -404,6 +405,7 @@ export async function runScan({ input, force } = {}, emit, signal) {
       });
       return;
     }
+    remoteLog().scanStart(domain); // collects this scan's entries for the opt-in remote log
     logInfo('scan', `Scan start ${domain} (${resolved.mode}${force ? ', forced' : ''})`);
 
     ({ tags, seeds } = await layerA(resolved, settings, say, signal));
@@ -493,6 +495,11 @@ export async function runScan({ input, force } = {}, emit, signal) {
       say({ type: 'error', message: `Scan failed: ${(e && e.message) || e}` });
     }
   } finally {
-    await closeScanWindow();
+    try {
+      await closeScanWindow();
+    } finally {
+      // Ships the batch only with consent; never throws, not awaited so the scan ends promptly.
+      remoteLog().scanEnd().catch(() => {});
+    }
   }
 }
