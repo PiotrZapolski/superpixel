@@ -9,7 +9,7 @@ RUN adduser -D -H -u 10001 app \
     && chown app:app /data
 
 WORKDIR /app
-COPY app.py /app/app.py
+COPY app.py triage.py /app/
 
 USER app
 EXPOSE 8000

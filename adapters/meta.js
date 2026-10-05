@@ -198,6 +198,43 @@ export function mapMetaResult(raw, domain) {
   });
 }
 
+// ------------------------------------------------------------- diagnostics
+
+const DIAG_MAX_PAYLOADS = 10;
+
+/** host + path only, never the query string; 'ssr' stays 'ssr'. */
+function hostPath(u) {
+  const s = String(u || '');
+  if (!s) return '';
+  if (s === 'ssr') return 'ssr';
+  try {
+    const x = new URL(s);
+    return x.host + x.pathname;
+  } catch {
+    return s.split(/[?#]/)[0].slice(0, 200);
+  }
+}
+
+/**
+ * One log line describing what a capture returned, without bodies or query strings.
+ * @param {{payloads?:{url?:string, status?:number, body?:string}[], tabUrl?:string, error?:string}} cap
+ * @returns {string}
+ */
+export function describeCapture(cap) {
+  const c = cap && typeof cap === 'object' ? cap : {};
+  const payloads = Array.isArray(c.payloads) ? c.payloads : [];
+  const items = payloads.slice(0, DIAG_MAX_PAYLOADS).map((p) => {
+    const q = p && typeof p === 'object' ? p : {};
+    const len = typeof q.body === 'string' ? q.body.length : 0;
+    return `${hostPath(q.url) || '?'} ${q.status != null ? q.status : '-'} ${len}b`;
+  });
+  if (payloads.length > DIAG_MAX_PAYLOADS) items.push(`+${payloads.length - DIAG_MAX_PAYLOADS} more`);
+  let line = `${payloads.length} payloads [${items.join(', ')}], tab ${hostPath(c.tabUrl) || '-'}`;
+  // Error text can embed a URL: drop anything that looks like a query string.
+  if (c.error) line += `, error: ${String(c.error).replace(/\?\S*/g, '').slice(0, 200)}`;
+  return line;
+}
+
 // ------------------------------------------------------------------ search
 
 function isLoginUrl(u) {
@@ -278,6 +315,13 @@ export async function search(seeds, ctx) {
       if (rateLimited) return finish('rate_limited', 'Meta is rate-limiting the Ad Library, try again later');
       if (first.error && !(first.payloads && first.payloads.length)) {
         return finish('error', `Meta Ad Library did not load (${first.error})`);
+      }
+      if (ctx.log) {
+        try {
+          ctx.log('warn', `First pass found no collated_results: ${describeCapture(first)}`);
+        } catch {
+          /* logging must never break the scan */
+        }
       }
       return finish('changed', 'Meta changed its response format');
     }

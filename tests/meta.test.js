@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { meta, deepLinks, buildSearchUrl, parseMetaPayloads, mapMetaResult, search } from '../adapters/meta.js';
+import { meta, deepLinks, buildSearchUrl, parseMetaPayloads, mapMetaResult, describeCapture, search } from '../adapters/meta.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const SSR = fixture('meta-ssr.json');
@@ -213,4 +213,46 @@ test('search maps, expands confirmed pages and aggregates advertisers', async ()
   assert.equal(top.id, '222222222');
   assert.equal(top.confirmedCount, 2);
   assert.equal(top.url, 'https://www.facebook.com/222222222');
+});
+
+test('search logs a capture diagnostic when the first pass is changed', async () => {
+  const logs = [];
+  const ctx = fakeCtx(() => ({
+    payloads: [
+      { url: 'ssr', status: 200, body: '{"foo":1}' },
+      { url: 'https://www.facebook.com/api/graphql/?doc_id=123&secret=x', status: 500, body: 'oops' },
+    ],
+    tabUrl: 'https://www.facebook.com/ads/library/?q=acme-outdoor.com',
+    error: 'timeout',
+  }));
+  ctx.log = (level, msg) => logs.push({ level, msg });
+  const res = await search({ domain: DOMAIN, brand: 'acme-outdoor' }, ctx);
+  assert.equal(res.status, 'changed');
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].level, 'warn');
+  assert.equal(
+    logs[0].msg,
+    'First pass found no collated_results: 2 payloads [ssr 200 9b, www.facebook.com/api/graphql/ 500 4b], tab www.facebook.com/ads/library/, error: timeout',
+  );
+  assert.doesNotMatch(logs[0].msg, /\?|secret|foo/);
+});
+
+test('search does not log the diagnostic on a normal result', async () => {
+  const logs = [];
+  const ctx = fakeCtx((url) => ({ payloads: PAYLOADS, tabUrl: url }), { metaScrolls: 0, metaExpandPages: 0 });
+  ctx.log = (level, msg) => logs.push({ level, msg });
+  const res = await search({ domain: DOMAIN, brand: 'acme-outdoor' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.equal(logs.length, 0);
+});
+
+test('describeCapture caps payloads, strips query strings and survives junk', () => {
+  const payloads = Array.from({ length: 12 }, (_, i) => ({ url: `https://www.facebook.com/api/graphql/?n=${i}`, status: 200, body: 'ab' }));
+  const line = describeCapture({ payloads, tabUrl: '', error: 'failed https://x.example/p?key=1' });
+  assert.match(line, /^12 payloads \[/);
+  assert.equal((line.match(/www\.facebook\.com\/api\/graphql\/ 200 2b/g) || []).length, 10);
+  assert.match(line, /\+2 more\], tab -, error: failed https:\/\/x\.example\/p$/);
+  assert.doesNotMatch(line, /n=|key=/);
+  assert.equal(describeCapture(null), '0 payloads [], tab -');
+  assert.equal(describeCapture({ payloads: [null] }), '1 payloads [? - 0b], tab -');
 });

@@ -79,9 +79,16 @@ source ~/.superpixel.env
 curl -s -H "Authorization: Bearer $SUPERPIXEL_READ_TOKEN" 'https://superpixel.run/v1/logs?level=warn&limit=100'
 ```
 
+Triage digest (summary of repeated messages, adapter finish statuses per platform, raw entries per
+scan; excludes install `claude-smoke`), run on the prod box:
+
+```sh
+docker exec superpixel-log python triage.py --hours 26
+```
+
 ## Tests
 
-`python -m unittest -v server/test_app.py` (runs in GitHub CI, job `server`).
+`python -m unittest discover -s server -p 'test_*.py' -v` (runs in GitHub CI, job `server`).
 
 ## Deploy
 
