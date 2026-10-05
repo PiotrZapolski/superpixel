@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superpixel report</title>
+<link rel="icon" href="../icons/icon32.png">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <img src="../icons/icon32.png" width="22" height="22" alt="">
+      <span class="brand-name">Superpixel</span>
+      <span class="brand-sub">Full report</span>
+    </div>
+    <label class="switch-row" id="confirmed-row" hidden>
+      <span class="switch-label">Only confirmed</span>
+      <span class="switch">
+        <input id="only-confirmed-toggle" type="checkbox">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+      </span>
+    </label>
+  </div>
+</header>
+
+<main class="page">
+  <section id="empty-state" class="empty-state" hidden>
+    <h1>No scan yet</h1>
+    <p>Open the Superpixel side panel, scan a domain, then click "Full report" to see it here.</p>
+  </section>
+
+  <div id="report" hidden>
+    <section class="report-head">
+      <img id="favicon" class="favicon" width="48" height="48" alt="" hidden>
+      <div class="report-head-text">
+        <h1 id="report-domain" class="report-domain"></h1>
+        <p id="report-date" class="report-date"></p>
+      </div>
+      <p id="update-note" class="update-note" hidden>Updated with the latest scan</p>
+    </section>
+
+    <section class="kpis" aria-label="Key numbers">
+      <div class="kpi"><span id="kpi-total" class="kpi-value">0</span><span id="kpi-total-label" class="kpi-label">Ads found</span></div>
+      <div class="kpi"><span id="kpi-confirmed" class="kpi-value">0</span><span class="kpi-label">Confirmed ads</span></div>
+      <div class="kpi"><span id="kpi-advertisers" class="kpi-value">0</span><span class="kpi-label">Advertisers</span></div>
+      <div class="kpi"><span id="kpi-platforms" class="kpi-value">0</span><span class="kpi-label">Platforms with ads</span></div>
+      <div class="kpi"><span id="kpi-tags" class="kpi-value">0</span><span class="kpi-label">Tags on the site</span></div>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Ad stack</h2>
+          <div id="match-legend" class="legend"></div>
+        </div>
+        <div id="ad-stack"></div>
+        <div id="manual-list" class="manual-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Key facts</h2>
+        <ul id="facts" class="facts"></ul>
+      </section>
+
+      <section class="panel panel-wide">
+        <h2>Tag stack</h2>
+        <div id="tag-stack" class="tag-stack"></div>
+      </section>
+    </div>
+
+    <section class="panel export-panel" aria-labelledby="export-title">
+      <div class="panel-head">
+        <h2 id="export-title">Export graphic</h2>
+        <p class="panel-hint">Social image of this report, for X, LinkedIn or Instagram.</p>
+      </div>
+      <div class="export-controls">
+        <div class="seg" role="group" aria-label="Format" id="preset-group"></div>
+        <div class="seg" role="group" aria-label="Theme">
+          <button type="button" class="seg-btn" data-theme="dark" aria-pressed="true">Dark</button>
+          <button type="button" class="seg-btn" data-theme="light" aria-pressed="false">Light</button>
+        </div>
+        <div class="seg" role="group" aria-label="Graphic language">
+          <button type="button" class="seg-btn" data-lang="pl" aria-pressed="true">PL</button>
+          <button type="button" class="seg-btn" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+        <div class="export-actions">
+          <button id="download-btn" type="button" class="primary-btn">Download PNG</button>
+          <button id="copy-btn" type="button" class="secondary">Copy to clipboard</button>
+        </div>
+      </div>
+      <p id="export-status" class="export-status" aria-live="polite"></p>
+      <div class="preview-wrap">
+        <canvas id="preview" class="preview" width="1600" height="900" aria-label="Graphic preview"></canvas>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script type="module" src="report.js"></script>
+</body>
+</html>

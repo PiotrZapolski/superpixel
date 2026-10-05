@@ -16,10 +16,15 @@ const LIB = 'https://www.facebook.com/ads/library/';
 const RATE_LIMIT_CODE = 1675004;
 const RATE_LIMIT_RE = /"(?:code|error|error_code|errorCode)"\s*:\s*"?1675004\b/;
 
-export function buildSearchUrl({ q, pageId } = {}) {
+// exact: quoted phrase search. Used for the domain, because keyword_unordered matches any token
+// ("muala.app" also hits every ad that mentions "app", e.g. maps.app.goo.gl links).
+export function buildSearchUrl({ q, pageId, exact } = {}) {
   const base = 'active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all';
   if (pageId) {
     return `${LIB}?${base}&search_type=page&view_all_page_id=${encodeURIComponent(String(pageId))}`;
+  }
+  if (exact) {
+    return `${LIB}?${base}&search_type=keyword_exact_phrase&q=${encodeURIComponent(`"${String(q || '')}"`)}`;
   }
   return `${LIB}?${base}&search_type=keyword_unordered&q=${encodeURIComponent(String(q || ''))}`;
 }
@@ -31,7 +36,7 @@ export function pageLibraryUrl(pageId) {
 export function deepLinks(seeds) {
   const links = [];
   const domain = (seeds && seeds.domain) || '';
-  if (domain) links.push({ label: 'Meta Ad Library (domain)', url: buildSearchUrl({ q: domain }) });
+  if (domain) links.push({ label: 'Meta Ad Library (domain)', url: buildSearchUrl({ q: domain, exact: true }) });
   const brand = seeds && seeds.brand;
   if (brand && String(brand).toLowerCase() !== String(domain).toLowerCase()) {
     links.push({ label: `Meta Ad Library ("${brand}")`, url: buildSearchUrl({ q: brand }) });
@@ -313,7 +318,7 @@ export async function search(seeds, ctx) {
   try {
     // 1. keyword search with the domain
     ctx.progress && ctx.progress(`Meta: searching "${domain}"`);
-    const first = await capture(buildSearchUrl({ q: domain }), { scrolls });
+    const first = await capture(buildSearchUrl({ q: domain, exact: true }), { scrolls });
     if (isLoginUrl(first.tabUrl)) {
       return finish('needs_user', 'Log in to Facebook in this browser to search the Meta Ad Library');
     }
