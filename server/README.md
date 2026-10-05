@@ -85,10 +85,13 @@ curl -s -H "Authorization: Bearer $SUPERPIXEL_READ_TOKEN" 'https://superpixel.ru
 
 ## Deploy
 
-Every push to `main` touching `server/**` runs `.github/workflows/deploy-server.yml`. It SSHes to
-the prod box with a deploy key whose forced command is `server/deploy/remote-deploy.sh`: that
-script pulls `origin/main`, rebuilds and restarts the container, and waits for it to be healthy.
-The workflow then checks `https://superpixel.run/healthz`.
+Deploy = push to `main`. The prod box polls every 2 minutes (systemd timer
+`superpixel-deploy.timer`, as root): `server/deploy/remote-deploy.sh` fetches `origin/main`, resets
+to it, and rebuilds and restarts the container only when `server/` changed or the container is not
+running and healthy. It then waits for the container to report healthy.
+
+- Logs: `journalctl -u superpixel-deploy -n 50`
+- Manual deploy: `systemctl start superpixel-deploy`
 
 ### One-time server setup (as root on 65.108.140.190)
 
@@ -97,13 +100,10 @@ The workflow then checks `https://superpixel.run/healthz`.
 3. Add `server/deploy/Caddyfile.snippet` to the shared Caddy config as described in
    `/root/SERVER.md` section 5, then reload Caddy. Point the `superpixel.run` and
    `www.superpixel.run` DNS A records at the box.
-4. Generate a deploy key pair (`ssh-keygen -t ed25519 -C superpixel-deploy -N ''`) and add the
-   public key to `/root/.ssh/authorized_keys` with a forced command:
+4. Install the timer:
 
-   ```
-   command="/var/www/superpixel/server/deploy/remote-deploy.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... superpixel-deploy
+   ```sh
+   ln -sf /var/www/superpixel/server/deploy/superpixel-deploy.{service,timer} /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now superpixel-deploy.timer
    ```
 
-5. In the GitHub repo secrets, set `SUPERPIXEL_DEPLOY_KEY` (the private key) and
-   `SUPERPIXEL_KNOWN_HOSTS` (output of `ssh-keyscan -t ed25519 65.108.140.190`).
-6. First deploy: run the workflow manually (`workflow_dispatch`) or run the script once by hand.
+5. First deploy: `systemctl start superpixel-deploy`.

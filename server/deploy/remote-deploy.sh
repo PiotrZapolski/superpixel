@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Runs on the prod box as the SSH forced command for the superpixel deploy key.
-# Arguments and SSH_ORIGINAL_COMMAND are ignored on purpose: nothing sent by
-# the client is ever executed.
+# Pull-based deploy, runs on the prod box as root.
+# Triggered every 2 minutes by the systemd timer superpixel-deploy.timer
+# (service: superpixel-deploy.service); it may also be run by hand.
+# It fetches origin/main, and rebuilds the container only when server/ changed
+# or the container is not running and healthy.
 #
 # Everything lives in main() so bash parses the whole script before running it;
 # git reset below may rewrite this very file mid-run.
@@ -13,7 +15,25 @@ main() {
 
     cd "$repo"
     git fetch --quiet origin main
+
+    local old new
+    old=$(git rev-parse HEAD)
+    new=$(git rev-parse origin/main)
+
+    container_status() {
+        docker inspect -f '{{if .State.Running}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{else}}stopped{{end}}' "$container" 2>/dev/null || echo missing
+    }
+
+    if [ "$old" = "$new" ] && [ "$(container_status)" = "healthy" ]; then
+        exit 0
+    fi
+
     git reset --hard origin/main
+
+    if [ "$old" != "$new" ] && git diff --quiet "$old" "$new" -- server/ && [ "$(container_status)" = "healthy" ]; then
+        echo "no server changes"
+        exit 0
+    fi
 
     cd server
     if [ ! -f .env ]; then
@@ -33,7 +53,6 @@ main() {
     done
 
     echo "$container health: $status"
-    docker image prune -f >/dev/null || true
 
     if [ "$status" != "healthy" ]; then
         docker logs --tail 50 "$container" >&2 || true
@@ -42,6 +61,5 @@ main() {
     echo "deployed $(git rev-parse --short HEAD)"
 }
 
-unset SSH_ORIGINAL_COMMAND
 main
 exit 0
