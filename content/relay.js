@@ -44,7 +44,7 @@
       var nodes = document.querySelectorAll('script[type="application/json"]');
       for (var i = 0; i < nodes.length; i++) {
         var text = nodes[i].textContent || '';
-        if (text.indexOf('collated_results') === -1) continue;
+        if (text.indexOf('collated_results') === -1 && text.indexOf('search_results_connection') === -1) continue;
         var key = text.length + ':' + text.slice(0, 200) + ':' + text.slice(-200);
         if (ssrSeen.has(key)) continue;
         ssrSeen.add(key);

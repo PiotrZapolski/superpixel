@@ -6,6 +6,7 @@ import { meta, deepLinks, buildSearchUrl, parseMetaPayloads, mapMetaResult, desc
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const SSR = fixture('meta-ssr.json');
+const SSR_EMPTY = fixture('meta-ssr-empty.json');
 const GRAPHQL = fixture('meta-graphql.txt');
 const RATE_LIMIT = fixture('meta-ratelimit.txt');
 
@@ -173,6 +174,27 @@ test('search returns changed when nothing recognisable was captured', async () =
   const res = await search({ domain: DOMAIN, brand: 'acme-outdoor' }, ctx);
   assert.equal(res.status, 'changed');
   assert.match(res.message, /Meta changed its response format/);
+});
+
+test('parseMetaPayloads recognises an empty search_results_connection', () => {
+  const r = parseMetaPayloads([{ url: 'ssr', status: 200, body: SSR_EMPTY }]);
+  assert.deepEqual(r.results, []);
+  assert.equal(r.found, 0);
+  assert.equal(r.connections, 1);
+  assert.equal(r.emptyConnection, true);
+});
+
+test('parseMetaPayloads keeps extracting results through a non-empty connection', () => {
+  const r = parseMetaPayloads([{ url: 'ssr', status: 200, body: SSR }]);
+  assert.equal(r.results.length, 2);
+  assert.equal(r.connections, 1);
+  assert.equal(r.emptyConnection, false);
+});
+
+test('search returns empty (not changed) when Meta reports zero ads', async () => {
+  const ctx = fakeCtx(() => ({ payloads: [{ url: 'ssr', body: SSR_EMPTY }], tabUrl: 'https://www.facebook.com/ads/library/' }));
+  const res = await search({ domain: DOMAIN, brand: 'acme-outdoor' }, ctx);
+  assert.equal(res.status, 'empty');
 });
 
 test('search returns rate_limited when only the error came back', async () => {

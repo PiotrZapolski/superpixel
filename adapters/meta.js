@@ -63,14 +63,18 @@ function isRateLimitNode(node) {
 
 /**
  * @param {{url:string, status?:number, body:string}[]} payloads
- * @returns {{results:object[], rateLimited:boolean, found:number}}
+ * @returns {{results:object[], rateLimited:boolean, found:number, connections:number, emptyConnection:boolean}}
  *   found = number of collated_results arrays seen (0 means nothing recognisable was captured).
+ *   connections = number of search_results_connection objects (with an edges array) seen.
+ *   emptyConnection = true when one of them was a genuine empty result set (no edges, count 0 or missing).
  */
 export function parseMetaPayloads(payloads) {
   const results = [];
   const seen = new Set();
   let rateLimited = false;
   let found = 0;
+  let connections = 0;
+  let emptyConnection = false;
   for (const p of Array.isArray(payloads) ? payloads : []) {
     const body = p && typeof p.body === 'string' ? p.body : '';
     if (!body) continue;
@@ -81,6 +85,11 @@ export function parseMetaPayloads(payloads) {
         walkJson(root, (node) => {
           if (!node || typeof node !== 'object') return undefined;
           if (isRateLimitNode(node)) rateLimited = true;
+          const conn = node.search_results_connection;
+          if (conn && typeof conn === 'object' && Array.isArray(conn.edges)) {
+            connections++;
+            if (conn.edges.length === 0 && (conn.count === 0 || conn.count == null)) emptyConnection = true;
+          }
           if (Array.isArray(node.collated_results)) {
             found++;
             for (const r of node.collated_results) {
@@ -99,7 +108,7 @@ export function parseMetaPayloads(payloads) {
       }
     }
   }
-  return { results, rateLimited, found };
+  return { results, rateLimited, found, connections, emptyConnection };
 }
 
 function textOf(v) {
@@ -311,7 +320,7 @@ export async function search(seeds, ctx) {
     const p1 = parseMetaPayloads(first.payloads);
     for (const raw of p1.results) addAd(mapMetaResult(raw, domain));
     if (p1.rateLimited) rateLimited = true;
-    if (p1.found === 0 && !p1.results.length) {
+    if (p1.found === 0 && !p1.results.length && !p1.emptyConnection) {
       if (rateLimited) return finish('rate_limited', 'Meta is rate-limiting the Ad Library, try again later');
       if (first.error && !(first.payloads && first.payloads.length)) {
         return finish('error', `Meta Ad Library did not load (${first.error})`);
