@@ -37,6 +37,10 @@ test('buildSearchUrl builds keyword and page urls', () => {
   assert.equal(kw.searchParams.get('country'), 'ALL');
   assert.equal(kw.searchParams.get('ad_type'), 'all');
 
+  const exact = new URL(buildSearchUrl({ q: 'muala.app', exact: true }));
+  assert.equal(exact.searchParams.get('q'), '"muala.app"');
+  assert.equal(exact.searchParams.get('search_type'), 'keyword_exact_phrase');
+
   const brand = new URL(buildSearchUrl({ q: 'Acme & Co' }));
   assert.equal(brand.searchParams.get('q'), 'Acme & Co');
 
@@ -142,7 +146,9 @@ test('mapMetaResult: missing snapshot fields are safe', () => {
 
 test('deepLinks include the keyword search url', () => {
   const links = deepLinks({ domain: DOMAIN, brand: 'Acme Outdoor' });
-  assert.ok(links[0].url.includes('q=acme-outdoor.com'));
+  const domainLink = new URL(links[0].url);
+  assert.equal(domainLink.searchParams.get('q'), '"acme-outdoor.com"');
+  assert.equal(domainLink.searchParams.get('search_type'), 'keyword_exact_phrase');
   assert.ok(links.some((l) => l.url.includes('q=Acme%20Outdoor')));
 });
 
