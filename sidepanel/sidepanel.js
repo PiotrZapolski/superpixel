@@ -37,6 +37,7 @@ let lastScanInput = null; // {mode:'domain', domain} | {mode:'tab', tabId}
 let onlyConfirmed = false;
 let manualLibraries = []; // [{id,label,coverage,handle,url,hint}]
 const platformEntries = new Map(); // platform id -> {slot, kind, refs, open, userToggled, result}
+let remoteLogValue = null; // settings.remoteLog: null = never asked, true = granted, false = declined
 
 // ---- DOM refs ----
 
@@ -68,6 +69,10 @@ const showLogToggle = document.getElementById('show-log-toggle');
 const debugLogViewEl = document.getElementById('debug-log-view');
 const debugLogStatusEl = document.getElementById('debug-log-status');
 const exportJsonBtn = document.getElementById('export-json-btn');
+const consentBannerEl = document.getElementById('consent-banner');
+const consentYesBtn = document.getElementById('consent-yes-btn');
+const consentNoBtn = document.getElementById('consent-no-btn');
+const remoteLogInput = document.getElementById('setting-remoteLog');
 
 const tagsSectionEl = document.getElementById('tags-section');
 const tagsSummaryTextEl = document.getElementById('tags-summary-text');
@@ -384,6 +389,15 @@ function updateSummaryStrip(data, cached) {
 
 function onSettings(settings) {
   populateSettingsForm(settings || {});
+  // Remote log consent is asked once: the banner shows until the user answers.
+  consentBannerEl.hidden = remoteLogValue !== null;
+}
+
+function answerConsent(granted) {
+  remoteLogValue = granted;
+  remoteLogInput.checked = granted;
+  consentBannerEl.hidden = true;
+  send({ type: 'saveSettings', settings: { remoteLog: granted } });
 }
 
 // ---- tags / brand signals ----
@@ -908,6 +922,8 @@ function populateSettingsForm(settings) {
   if (fallbackInput) fallbackInput.checked = !!settings.useSearchapiFallback;
   const showTabsInput = document.getElementById('setting-showScanTabs');
   if (showTabsInput) showTabsInput.checked = !!settings.showScanTabs;
+  remoteLogValue = settings.remoteLog === true || settings.remoteLog === false ? settings.remoteLog : null;
+  remoteLogInput.checked = remoteLogValue === true;
 }
 
 function collectSettingsForm() {
@@ -937,6 +953,8 @@ function collectSettingsForm() {
     useSearchapiFallback: !!(document.getElementById('setting-useSearchapiFallback') || {}).checked,
     showScanTabs: !!(document.getElementById('setting-showScanTabs') || {}).checked,
     cacheHours: getNumberField('setting-cacheHours', 24),
+    // Untouched while never asked stays null, so saving other settings does not answer the prompt.
+    remoteLog: remoteLogValue,
   };
 }
 
@@ -1096,6 +1114,14 @@ clearCacheBtn.addEventListener('click', () => {
   setTimeout(() => {
     settingsStatusEl.textContent = '';
   }, 1500);
+});
+
+consentYesBtn.addEventListener('click', () => answerConsent(true));
+consentNoBtn.addEventListener('click', () => answerConsent(false));
+
+remoteLogInput.addEventListener('change', () => {
+  remoteLogValue = remoteLogInput.checked;
+  consentBannerEl.hidden = true;
 });
 
 copyLogBtn.addEventListener('click', () => {

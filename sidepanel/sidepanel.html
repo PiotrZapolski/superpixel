@@ -30,6 +30,15 @@
   <p id="error-text" class="error-text" role="alert" hidden></p>
 </header>
 
+<section id="consent-banner" class="consent-banner" hidden aria-labelledby="consent-title">
+  <h2 id="consent-title" class="consent-title">Help fix broken scans?</h2>
+  <p class="consent-body">Send scan warnings and errors (platform statuses, error messages and the scanned domain) to superpixel.run so the developer can fix scrapers quickly. No settings, keys or page content are sent. You can change this anytime in Settings.</p>
+  <div class="consent-actions">
+    <button id="consent-yes-btn" type="button" class="primary-btn">Send logs</button>
+    <button id="consent-no-btn" type="button" class="secondary">No thanks</button>
+  </div>
+</section>
+
 <div id="summary-strip" class="summary-strip" hidden>
   <div class="summary-main">
     <span id="summary-domain" class="summary-domain"></span>
@@ -104,6 +113,7 @@
   <fieldset class="settings-group">
     <legend>Debug</legend>
     <label class="check-row"><input type="checkbox" id="setting-showScanTabs"> Show scan tabs</label>
+    <label class="check-row"><input type="checkbox" id="setting-remoteLog"> Send warnings to superpixel.run</label>
   </fieldset>
 
   <fieldset class="settings-group">

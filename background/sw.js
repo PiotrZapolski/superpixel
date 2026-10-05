@@ -4,6 +4,10 @@ import { handleRuntimeMessage } from './hidden-tab.js';
 import { loadSettings, saveSettings } from './settings.js';
 import * as cache from './cache.js';
 import { logInfo, logError, errText, getLog, clearLog } from './log.js';
+import { installRemoteLog } from './remote-log.js';
+
+// Opt-in remote debug log: listens to log entries, sends only when settings.remoteLog is true.
+const remote = installRemoteLog();
 
 // Unhandled errors in the service worker end up in the debug log (and the console).
 self.addEventListener('error', (e) => {
@@ -96,12 +100,18 @@ chrome.runtime.onConnect.addListener((port) => {
           }
           break;
         }
-        case 'getSettings':
-          post({ type: 'settings', settings: await loadSettings() });
+        case 'getSettings': {
+          const settings = await loadSettings();
+          remote.setConsent(settings.remoteLog);
+          post({ type: 'settings', settings });
           break;
-        case 'saveSettings':
-          post({ type: 'settings', settings: await saveSettings(msg.settings || {}) });
+        }
+        case 'saveSettings': {
+          const settings = await saveSettings(msg.settings || {});
+          remote.setConsent(settings.remoteLog);
+          post({ type: 'settings', settings });
           break;
+        }
         case 'clearCache':
           await cache.clear();
           post({ type: 'cacheCleared' });

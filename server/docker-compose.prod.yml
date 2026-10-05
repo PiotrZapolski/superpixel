@@ -1,0 +1,9 @@
+services:
+  app:
+    ports: !override []
+    networks: [default, caddy]
+
+networks:
+  caddy:
+    external: true
+    name: zoyeai_sail
