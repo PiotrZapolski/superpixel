@@ -26,6 +26,13 @@ function enablePanelOnAction() {
 }
 
 chrome.runtime.onInstalled.addListener(enablePanelOnAction);
+// A new build (including reloading the unpacked extension) may parse platforms differently, so
+// cached adapter results from the old code must not survive it.
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === 'install' || reason === 'update') {
+    cache.clear().then(() => logInfo('sw', `Result cache cleared (${reason})`));
+  }
+});
 chrome.runtime.onStartup.addListener(enablePanelOnAction);
 enablePanelOnAction();
 
