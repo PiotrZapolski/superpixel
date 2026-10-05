@@ -14,7 +14,7 @@ import * as searchapi from '../adapters/searchapi.js';
 import { loadSettings } from './settings.js';
 import * as cache from './cache.js';
 import { getThrottle } from './queue.js';
-import { logInfo, logWarn, logError, safeUrl, errText } from './log.js';
+import { log, logInfo, logWarn, logError, safeUrl, errText } from './log.js';
 import { remoteLog } from './remote-log.js';
 import {
   openCaptureTab,
@@ -259,6 +259,8 @@ function buildCtx(adapter, settings, emit, signal, stats) {
       return openCaptureTabDom(url, { waitMs, showScanTabs: !!settings.showScanTabs, signal });
     },
     progress: (text) => emit({ type: 'progress', id, text: String(text) }),
+    // Adapter diagnostics into the debug log. Callers must never pass bodies or query strings.
+    log: (level, msg) => log(level, id, msg),
   };
 }
 

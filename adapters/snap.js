@@ -20,6 +20,7 @@ const NAME_KEYS = ['paying_advertiser_name', 'profile_name', 'brand_name'];
 const SNAP_HOST_RE = /(^|\.)(snapchat\.com|snap\.com|sc-cdn\.net|sc-static\.net|snapads\.com|snapkit\.com)$/i;
 const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|mp4|mov|webm|m3u8)(\?|#|$)/i;
 const RETRY_MS = [5000, 15000];
+const RETRY_AFTER_MAX_S = 60;
 export const NAME_MATCH_NOTE = 'Name match only, Snapchat does not expose landing pages';
 
 // ---------------------------------------------------------------------------------------------
@@ -125,6 +126,24 @@ export function deepLinks() {
 // I/O
 // ---------------------------------------------------------------------------------------------
 
+function headerValue(res, name) {
+  try {
+    const h = res && res.headers;
+    if (!h) return '';
+    const v = typeof h.get === 'function' ? h.get(name) : h[name];
+    return v == null ? '' : String(v).trim();
+  } catch {
+    return '';
+  }
+}
+
+/** Retry-After in whole seconds (0..60) wins over the default backoff step; dates and larger values do not. */
+export function retryAfterMs(value, fallbackMs) {
+  const s = String(value == null ? '' : value).trim();
+  if (/^\d+$/.test(s) && Number(s) <= RETRY_AFTER_MAX_S) return Number(s) * 1000;
+  return fallbackMs;
+}
+
 async function postSearch(ctx, url, body) {
   for (let attempt = 0; ; attempt += 1) {
     if (ctx.throttle) await ctx.throttle();
@@ -135,8 +154,16 @@ async function postSearch(ctx, url, body) {
       body: JSON.stringify(body),
     });
     if (res.status === 429) {
-      if (attempt >= RETRY_MS.length) return { rateLimited: true };
-      await sleep(RETRY_MS[attempt], ctx.signal);
+      const retryAfter = headerValue(res, 'retry-after');
+      let snippet = '';
+      try { snippet = String(await res.text()).replace(/[\r\n]+/g, ' ').slice(0, 200); } catch { snippet = ''; }
+      const waitMs = retryAfterMs(retryAfter, RETRY_MS[attempt]);
+      const last = attempt >= RETRY_MS.length;
+      try {
+        if (ctx.log) ctx.log('warn', `429 attempt ${attempt + 1}, retry-after ${retryAfter || '-'}, ${last ? 'giving up' : `waiting ${waitMs}ms`}, body: ${snippet}`);
+      } catch { /* logging must never break the scan */ }
+      if (last) return { rateLimited: true };
+      await sleep(waitMs, ctx.signal);
       continue;
     }
     const text = await res.text();

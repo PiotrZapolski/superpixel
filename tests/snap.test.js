@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { meta, buildSnapBody, parseSnapAds, EU_COUNTRIES, NAME_MATCH_NOTE, search } from '../adapters/snap.js';
+import { meta, buildSnapBody, parseSnapAds, EU_COUNTRIES, NAME_MATCH_NOTE, retryAfterMs, search } from '../adapters/snap.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const SNAP = JSON.parse(fixture('snap-search.json'));
@@ -136,4 +136,63 @@ test('search() reports empty with the searched names when nothing is found', asy
   const res = await search({ domain: 'x.com', brand: 'Acme', advertiserNames: ['Acme Corp'] }, ctx);
   assert.equal(res.status, 'empty');
   assert.match(res.message, /"Acme" \/ "Acme Corp"/);
+});
+
+function rateLimitResponse(retryAfter, body = 'Too Many\nRequests') {
+  const headers = new Map();
+  if (retryAfter !== undefined) headers.set('retry-after', retryAfter);
+  return { status: 429, ok: false, headers: { get: (k) => (headers.has(k.toLowerCase()) ? headers.get(k.toLowerCase()) : null) }, async text() { return body; } };
+}
+
+test('retryAfterMs: small whole seconds win, everything else falls back', () => {
+  assert.equal(retryAfterMs('0', 5000), 0);
+  assert.equal(retryAfterMs('7', 5000), 7000);
+  assert.equal(retryAfterMs(' 60 ', 5000), 60000);
+  assert.equal(retryAfterMs('61', 5000), 5000);
+  assert.equal(retryAfterMs('1.5', 5000), 5000);
+  assert.equal(retryAfterMs('Wed, 21 Oct 2026 07:28:00 GMT', 15000), 15000);
+  assert.equal(retryAfterMs('', 5000), 5000);
+  assert.equal(retryAfterMs(null, 5000), 5000);
+});
+
+test('search() honours Retry-After on 429, logs it, and recovers', async () => {
+  const logs = [];
+  let n = 0;
+  const ctx = {
+    settings: {},
+    log: (level, msg) => logs.push({ level, msg }),
+    async fetch() {
+      n += 1;
+      if (n === 1) return rateLimitResponse('0', 'slow\r\ndown ' + 'x'.repeat(300));
+      return fakeResponse({ request_status: 'SUCCESS', ad_previews: [] });
+    },
+  };
+  const t0 = Date.now();
+  const res = await search({ domain: 'x.com', brand: 'Acme' }, ctx);
+  assert.ok(Date.now() - t0 < 2000, 'Retry-After 0 must replace the 5s default step');
+  assert.equal(res.status, 'empty');
+  assert.equal(n, 2);
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].level, 'warn');
+  assert.match(logs[0].msg, /^429 attempt 1, retry-after 0, waiting 0ms, body: slow down x+$/);
+  assert.equal(logs[0].msg.split('body: ')[1].length, 200);
+});
+
+test('search() gives up after 2 retries with rate_limited, keeping the return shape', async () => {
+  const logs = [];
+  let n = 0;
+  const ctx = {
+    settings: {},
+    log: (level, msg) => logs.push({ level, msg }),
+    async fetch() { n += 1; return rateLimitResponse('0'); },
+  };
+  const res = await search({ domain: 'x.com', brand: 'Acme' }, ctx);
+  assert.equal(res.status, 'rate_limited');
+  assert.equal(n, 3);
+  assert.deepEqual(logs.map((l) => l.msg.split(', body')[0]), [
+    '429 attempt 1, retry-after 0, waiting 0ms',
+    '429 attempt 2, retry-after 0, waiting 0ms',
+    '429 attempt 3, retry-after 0, giving up',
+  ]);
+  assert.match(logs[0].msg, /body: Too Many Requests$/);
 });
