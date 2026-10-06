@@ -10,6 +10,7 @@ RUN adduser -D -H -u 10001 app \
 
 WORKDIR /app
 COPY app.py triage.py /app/
+COPY site /app/site
 
 USER app
 EXPOSE 8000

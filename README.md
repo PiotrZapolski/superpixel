@@ -2,6 +2,8 @@
 
 # Superpixel
 
+Website: https://superpixel.run
+
 Superpixel is a Chrome extension (Manifest V3, plain JavaScript, no build step) for competitor
 research. Point it at a domain, typed or the active tab, and it shows two layers of information
 directly in a side panel, entirely in your own browser.

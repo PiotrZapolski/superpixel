@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://superpixel.run/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/"/>
+    <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/"/>
+  </url>
+  <url>
+    <loc>https://superpixel.run/pl/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/"/>
+    <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/"/>
+  </url>
+</urlset>

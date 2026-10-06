@@ -14,7 +14,7 @@ import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 MAX_BODY = 256 * 1024
 MAX_ENTRIES = 500
@@ -201,6 +201,45 @@ def parse_since(value):
     return iso(dt)
 
 
+CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".webp": "image/webp",
+    ".woff2": "font/woff2",
+    ".txt": "text/plain; charset=utf-8",
+    ".xml": "application/xml",
+}
+SHORT_CACHE_EXTS = {".html", ".txt", ".xml"}
+SITE_FILES = {"/": "index.html", "/pl/": "pl/index.html", "/robots.txt": "robots.txt", "/sitemap.xml": "sitemap.xml"}
+
+
+def resolve_static(site_dir, raw_path):
+    """Map a request path to a regular file inside site_dir, or None."""
+    if not site_dir:
+        return None
+    path = unquote(raw_path)
+    if path in SITE_FILES:
+        rel = SITE_FILES[path]
+    elif path.startswith("/assets/"):
+        rel = path[1:]
+    else:
+        return None
+    if "\0" in rel or "\\" in rel:
+        return None
+    for seg in rel.split("/"):
+        if seg == "" or seg.startswith("."):
+            return None
+    root = os.path.realpath(site_dir)
+    full = os.path.realpath(os.path.join(root, rel))
+    if not full.startswith(root + os.sep) or not os.path.isfile(full):
+        return None
+    return full
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "superpixel-log"
     sys_version = ""
@@ -243,7 +282,42 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, "ok", "text/plain")
         if url.path == "/v1/logs":
             return self.read_logs(url.query)
+        if self.serve_static(url.path):
+            return
         self.error(404, "not found")
+
+    def do_HEAD(self):
+        url = urlsplit(self.path)
+        if url.path == "/healthz":
+            return self.send(200, "ok", "text/plain")
+        if self.serve_static(url.path):
+            return
+        self.error(404, "not found")
+
+    def serve_static(self, raw_path):
+        """Serve a site file (headers only for HEAD). Returns False if the path is not a static route."""
+        if raw_path == "/pl":
+            self.send(301, headers={"Location": "/pl/"})
+            return True
+        full = resolve_static(self.server.app.site_dir, raw_path)
+        if full is None:
+            return False
+        try:
+            with open(full, "rb") as f:
+                payload = f.read()
+        except OSError:
+            return False
+        ext = os.path.splitext(full)[1].lower()
+        max_age = 300 if ext in SHORT_CACHE_EXTS else 86400
+        self.send_response(200)
+        self.send_header("Content-Type", CONTENT_TYPES.get(ext, "application/octet-stream"))
+        self.send_header("Cache-Control", f"public, max-age={max_age}")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(payload)
+        return True
 
     def do_POST(self):
         try:
@@ -287,7 +361,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         self.error(404, "not found")
 
-    do_DELETE = do_PATCH = do_HEAD = do_PUT
+    do_DELETE = do_PATCH = do_PUT
 
     def read_logs(self, query):
         app = self.server.app
@@ -316,18 +390,19 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class App:
-    def __init__(self, store, ingest_key, read_token, rate_limit):
+    def __init__(self, store, ingest_key, read_token, rate_limit, site_dir=None):
+        self.site_dir = site_dir
         self.store = store
         self.ingest_key = ingest_key or ""
         self.read_token = read_token or ""
         self.limiter = RateLimiter(rate_limit)
 
 
-def make_server(db_path, ingest_key, read_token, port=8000, host="0.0.0.0", rate_limit=30):
+def make_server(db_path, ingest_key, read_token, port=8000, host="0.0.0.0", rate_limit=30, site_dir=None):
     """Build (but do not start) the HTTP server. Port 0 picks a free port."""
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
-    server.app = App(Store(db_path), ingest_key, read_token, rate_limit)
+    server.app = App(Store(db_path), ingest_key, read_token, rate_limit, site_dir)
     return server
 
 
@@ -337,6 +412,7 @@ def main():
         os.environ.get("SUPERPIXEL_INGEST_KEY", ""),
         os.environ.get("SUPERPIXEL_READ_TOKEN", ""),
         port=int(os.environ.get("PORT", "8000")),
+        site_dir=os.environ.get("SUPERPIXEL_SITE", "/app/site"),
     )
     if not server.app.ingest_key:
         print("warning: SUPERPIXEL_INGEST_KEY is empty, all ingest requests will be rejected", flush=True)

@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superpixel - see the tags and ads behind any website</title>
+<meta name="description" content="Superpixel is a free, open-source Chrome extension for competitor research. It lists the marketing tags on a site and the ads it runs in public ad libraries, entirely in your browser.">
+<link rel="canonical" href="https://superpixel.run/">
+<link rel="alternate" hreflang="en" href="https://superpixel.run/">
+<link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/">
+<link rel="alternate" hreflang="x-default" href="https://superpixel.run/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Superpixel">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="pl_PL">
+<meta property="og:title" content="Superpixel - see the tags and ads behind any website">
+<meta property="og:description" content="A free, open-source Chrome extension for competitor research. On-site tags and running ads, in one side panel, in your own browser.">
+<meta property="og:url" content="https://superpixel.run/">
+<meta property="og:image" content="https://superpixel.run/assets/icon128.png">
+<meta name="twitter:card" content="summary">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/icon128.png" type="image/png" sizes="128x128">
+<link rel="apple-touch-icon" href="/assets/icon128.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="/" aria-label="Superpixel home">
+      <img src="/assets/icon128.png" width="32" height="32" alt="">
+      <span>Superpixel</span>
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#layers">What it shows</a>
+      <a href="#libraries">Ad libraries</a>
+      <a href="#install">Install</a>
+      <a href="#privacy">Privacy</a>
+    </nav>
+    <div class="top-end">
+      <a class="gh" href="https://github.com/PiotrZapolski/superpixel">GitHub</a>
+      <nav class="lang" aria-label="Language">
+        <a href="/" hreflang="en" lang="en" aria-current="page">EN</a>
+        <a href="/pl/" hreflang="pl" lang="pl">PL</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>See the tags and ads behind any website<span class="dot" aria-hidden="true"></span></h1>
+      <p class="lede">Superpixel is a free, open-source Chrome extension for competitor research. Type a domain or scan the tab you are on. A side panel lists every marketing, ads and analytics tag on the site, then pulls the ads pointing to that domain from public ad transparency libraries. It all runs in your own browser.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel">Get it free on GitHub</a>
+        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/main.zip">Download ZIP</a>
+      </div>
+      <p class="fine">MIT license. Not in the Chrome Web Store yet: you load it unpacked in Developer mode, <a href="#install">steps below</a>.</p>
+    </div>
+
+    <figure class="scan" role="img" aria-label="Illustration: a competitor's website with its marketing tags highlighted, next to the Superpixel side panel listing ad libraries with match labels.">
+      <div class="browser" aria-hidden="true">
+        <div class="browser-bar"><span class="lights"><i></i><i></i><i></i></span><span class="url">competitor.com</span></div>
+        <div class="page">
+          <div class="wf wf-nav"><i></i><i></i><i></i><i></i></div>
+          <div class="wf wf-head"></div>
+          <div class="wf wf-sub"></div>
+          <div class="wf wf-btn"></div>
+          <div class="wf wf-row"><i></i><i></i><i></i></div>
+          <div class="wf wf-lines"><i></i><i></i><i></i></div>
+          <span class="beam"></span>
+          <span class="px" style="--x:8%;--y:6%;--d:.05"><b>Google Tag Manager</b></span>
+          <span class="px" style="--x:62%;--y:16%;--d:.16"><b>GA4</b></span>
+          <span class="px" style="--x:14%;--y:34%;--d:.34"><b>Meta Pixel</b></span>
+          <span class="px" style="--x:46%;--y:46%;--d:.46"><b>Google Ads</b></span>
+          <span class="px" style="--x:30%;--y:64%;--d:.64"><b>TikTok Pixel</b></span>
+          <span class="px" style="--x:6%;--y:84%;--d:.84"><b>LinkedIn Insight</b></span>
+        </div>
+      </div>
+      <div class="panel" aria-hidden="true">
+        <p class="panel-head"><img src="/assets/icon128.png" width="18" height="18" alt=""> Running ads</p>
+        <ul>
+          <li><span>Google Ads Transparency</span><em class="chip c-ok">confirmed</em></li>
+          <li><span>Meta Ad Library</span><em class="chip c-adv">advertiser</em></li>
+          <li><span>LinkedIn Ad Library</span><em class="chip c-ok">confirmed</em></li>
+          <li><span>TikTok Ad Library</span><em class="chip c-kw">keyword</em></li>
+          <li><span>Snapchat Ads Gallery</span><em class="chip c-name">name</em></li>
+        </ul>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section id="layers" class="section">
+  <div class="wrap">
+    <h2>Two layers, one side panel</h2>
+    <p class="intro">Point Superpixel at a domain and it answers two questions: what is installed on the site, and what is the company advertising right now.</p>
+    <div class="layers">
+      <article class="layer">
+        <p class="layer-key" aria-hidden="true">A</p>
+        <h3>Layer A: on-site tags</h3>
+        <p>Every marketing, ads and analytics tag installed on the site, with the account IDs behind them.</p>
+        <ul class="tags" aria-label="Detected tags include">
+          <li>Meta Pixel</li><li>Google Ads</li><li>GA4</li><li>Google Tag Manager</li><li>LinkedIn Insight</li><li>TikTok Pixel</li><li>X</li><li>Pinterest</li><li>Snap</li><li>Reddit</li><li>Microsoft UET</li><li>Quora</li><li>Taboola</li><li>Outbrain</li><li>Criteo</li><li>Amazon</li><li>HubSpot</li><li>Microsoft Clarity</li><li>Hotjar</li><li>AdRoll</li><li>Yandex Metrica</li><li>Klaviyo</li><li class="more">and more</li>
+        </ul>
+      </article>
+      <article class="layer">
+        <p class="layer-key" aria-hidden="true">B</p>
+        <h3>Layer B: running ads</h3>
+        <p>Advertisers and ads from public ad transparency libraries that point to the domain, so you can see what a competitor is actually running. Each library is queried in parallel and results stream into the panel as they arrive.</p>
+        <p>Every ad carries a label for how sure Superpixel is that it belongs to the scanned domain:</p>
+        <dl class="labels">
+          <div><dt><span class="chip c-ok">confirmed</span></dt><dd>The landing page or display URL is on the domain or one of its subdomains.</dd></div>
+          <div><dt><span class="chip c-adv">advertiser</span></dt><dd>From an advertiser account with at least one confirmed ad, but this ad's landing page was not checked or points elsewhere.</dd></div>
+          <div><dt><span class="chip c-kw">keyword</span></dt><dd>Only matched a keyword search for the domain or brand name. The landing page is not on the domain.</dd></div>
+          <div><dt><span class="chip c-name">name</span></dt><dd>Only found through an advertiser name search, for libraries such as Snap that have no keyword search.</dd></div>
+        </dl>
+      </article>
+    </div>
+
+    <h3 class="sub-h">In the side panel</h3>
+    <ul class="features">
+      <li><strong>Scan a domain or the current tab.</strong> Type <code>example.com</code> and click Scan, or click Current tab.</li>
+      <li><strong>Only confirmed.</strong> One switch hides everything except ads whose landing page points back to the scanned domain.</li>
+      <li><strong>Export as JSON.</strong> Settings has "Export last scan as JSON" for the full result.</li>
+      <li><strong>Local cache.</strong> Reopening the panel shows your last scan. Rescan forces a fresh pull.</li>
+      <li><strong>Honest statuses.</strong> When a platform changes its response format, its card says "changed" instead of quietly reporting no results.</li>
+      <li><strong>No build step.</strong> Manifest V3 and plain JavaScript you can read.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="libraries" class="section section-alt">
+  <div class="wrap">
+    <h2>Supported ad libraries</h2>
+    <div class="lib-grid">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Platform</th><th scope="col">Coverage</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Google Ads Transparency Center</th><td>Global, including YouTube</td></tr>
+            <tr><th scope="row">Meta Ad Library</th><td>Global, active ads</td></tr>
+            <tr><th scope="row">TikTok Ad Library</th><td>EU/EEA, UK, Switzerland</td></tr>
+            <tr><th scope="row">LinkedIn Ad Library</th><td>Global, last 12 months</td></tr>
+            <tr><th scope="row">Microsoft (Bing) Ad Library</th><td>EU/EEA</td></tr>
+            <tr><th scope="row">Snapchat Ads Gallery</th><td>EU</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="lib-notes">
+        <p><strong>Deep links for the rest.</strong> Pinterest, X, Apple and Snap political ads have no scrapeable API, so Superpixel gives you a direct link to each library instead.</p>
+        <p><strong>Optional fallback.</strong> These are unofficial or undocumented endpoints that platforms can change at any time. You can add a <a href="https://www.searchapi.io/">SearchAPI.io</a> key as a fallback for when a scraper breaks.</p>
+        <p><strong>Coverage varies.</strong> No ads in a library does not mean a competitor is not advertising there, only that nothing was found within that library's coverage and your request limits.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install" class="section">
+  <div class="wrap install-grid">
+    <div>
+      <h2>Install</h2>
+      <p class="intro">Superpixel is not in the Chrome Web Store yet. You install it from the source:</p>
+      <ol class="steps">
+        <li>Clone the repository, or <a href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/main.zip">download the ZIP</a> and unzip it.
+          <pre><code>git clone https://github.com/PiotrZapolski/superpixel.git</code></pre></li>
+        <li>In Chrome, open <code>chrome://extensions</code>.</li>
+        <li>Turn on "Developer mode" (top right).</li>
+        <li>Click "Load unpacked" and select the cloned repository folder.</li>
+        <li>Pin the Superpixel icon to your toolbar.</li>
+        <li>Click the icon to open the side panel.</li>
+      </ol>
+    </div>
+    <aside class="needs" aria-labelledby="needs-h">
+      <h3 id="needs-h">What it needs</h3>
+      <ul>
+        <li>A Google account signed in to the same Chrome profile, for Google Ads Transparency search. Without it the Google card shows "needs you" with a sign-in link.</li>
+        <li>Facebook login is optional, but it improves Meta Ad Library results.</li>
+        <li>No account for the other libraries. Just an internet connection and a normal Chrome profile.</li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<section id="privacy" class="section section-alt">
+  <div class="wrap">
+    <h2>Privacy</h2>
+    <div class="privacy-grid">
+      <div class="privacy-copy">
+        <p class="big">Everything runs in your browser. Scans go straight from your machine to the public ad libraries, and results are stored only in your browser's local extension storage.</p>
+        <p>If you add a SearchAPI key, it stays in <code>chrome.storage.local</code> and is sent only to searchapi.io as a fallback request.</p>
+        <p>The only data that can ever reach a Superpixel server is the opt-in remote debug log. The first time the panel opens, it asks "Help fix broken scans?". Nothing is sent unless you click "Send logs".</p>
+        <p>If you say yes, each scan sends one batch to superpixel.run with a random install ID, the extension version, a scan ID, the scanned domain, the debug log's warnings and errors, and each platform's final status line. Never settings, keys, ads or page content. Turn it off anytime in Settings, Debug.</p>
+      </div>
+      <div class="flow" role="img" aria-label="Diagram: scans and results stay in your browser. Requests go to public ad libraries and, if you add a key, to searchapi.io. Only the opt-in debug log goes to superpixel.run.">
+        <div class="flow-you" aria-hidden="true">
+          <p class="flow-title">Your browser</p>
+          <ul><li>Scans</li><li>Results and cache</li><li>Settings and keys</li></ul>
+        </div>
+        <ul class="flow-out" aria-hidden="true">
+          <li><span class="flow-to">Public ad libraries</span><span class="flow-what">scan requests, from your own session</span></li>
+          <li><span class="flow-to">searchapi.io</span><span class="flow-what">only if you add a key</span></li>
+          <li class="optin"><span class="flow-to">superpixel.run</span><span class="flow-what">debug log, only if you said yes</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section closing">
+  <div class="wrap closing-inner">
+    <h2>Free, MIT licensed, on GitHub</h2>
+    <p>Read the code, open an issue, or send a pull request.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel">View on GitHub</a>
+      <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/issues">Report a bug</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <p class="foot-brand"><img src="/assets/icon128.png" width="24" height="24" alt=""> Superpixel</p>
+    <p>Released under the <a href="https://github.com/PiotrZapolski/superpixel/blob/main/LICENSE">MIT license</a>. No trackers, no cookies on this site.</p>
+    <p class="foot-terms">Superpixel automates public ad transparency libraries inside your own browser, with your own session and IP address. That may be against the terms of the platforms involved, and they may rate limit or block accounts that use it. Use it responsibly and at your own risk.</p>
+    <nav class="lang" aria-label="Language">
+      <a href="/" hreflang="en" lang="en" aria-current="page">English</a>
+      <a href="/pl/" hreflang="pl" lang="pl">Polski</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
