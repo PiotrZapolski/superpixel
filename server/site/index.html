@@ -29,6 +29,16 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></g></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.7 2.7L16.2 9.5"/></g></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></g></symbol>
+  <symbol id="i-cache" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/><path d="M12 8v4.2l2.8 1.8"/></g></symbol>
+  <symbol id="i-status" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.2 2.6 17.5a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9.5v4"/><path d="M12 17h.01"/></g></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m8.5 7-5 5 5 5"/><path d="m15.5 7 5 5-5 5"/></g></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></g></symbol>
+</svg>
 
 <header class="top">
   <div class="wrap top-inner">
@@ -43,7 +53,7 @@
       <a href="#privacy">Privacy</a>
     </nav>
     <div class="top-end">
-      <a class="gh" href="https://github.com/PiotrZapolski/superpixel">GitHub</a>
+      <a class="gh" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg><span class="gh-text">GitHub</span></a>
       <nav class="lang" aria-label="Language">
         <a href="/" hreflang="en" lang="en" aria-current="page">EN</a>
         <a href="/pl/" hreflang="pl" lang="pl">PL</a>
@@ -60,40 +70,48 @@
       <h1>See the tags and ads behind any website<span class="dot" aria-hidden="true"></span></h1>
       <p class="lede">Superpixel is a free, open-source Chrome extension for competitor research. Type a domain or scan the tab you are on. A side panel lists every marketing, ads and analytics tag on the site, then pulls the ads pointing to that domain from public ad transparency libraries. It all runs in your own browser.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel">Get it free on GitHub</a>
+        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>Get it free on GitHub</a>
         <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/main.zip">Download ZIP</a>
       </div>
       <p class="fine">MIT license. Not in the Chrome Web Store yet: you load it unpacked in Developer mode, <a href="#install">steps below</a>.</p>
     </div>
 
-    <figure class="scan" role="img" aria-label="Illustration: a competitor's website with its marketing tags highlighted, next to the Superpixel side panel listing ad libraries with match labels.">
-      <div class="browser" aria-hidden="true">
-        <div class="browser-bar"><span class="lights"><i></i><i></i><i></i></span><span class="url">competitor.com</span></div>
-        <div class="page">
-          <div class="wf wf-nav"><i></i><i></i><i></i><i></i></div>
-          <div class="wf wf-head"></div>
-          <div class="wf wf-sub"></div>
-          <div class="wf wf-btn"></div>
-          <div class="wf wf-row"><i></i><i></i><i></i></div>
-          <div class="wf wf-lines"><i></i><i></i><i></i></div>
-          <span class="beam"></span>
-          <span class="px" style="--x:8%;--y:6%;--d:.05"><b>Google Tag Manager</b></span>
-          <span class="px" style="--x:62%;--y:16%;--d:.16"><b>GA4</b></span>
-          <span class="px" style="--x:14%;--y:34%;--d:.34"><b>Meta Pixel</b></span>
-          <span class="px" style="--x:46%;--y:46%;--d:.46"><b>Google Ads</b></span>
-          <span class="px" style="--x:30%;--y:64%;--d:.64"><b>TikTok Pixel</b></span>
-          <span class="px" style="--x:6%;--y:84%;--d:.84"><b>LinkedIn Insight</b></span>
+    <figure class="scan" role="img" aria-label="Illustration: a competitor's website with its marketing tags marked, and the Superpixel side panel docked next to it, listing the tags and the ads found in each library with a match label.">
+      <div class="window" aria-hidden="true">
+        <div class="browser-bar"><span class="lights"><i></i><i></i><i></i></span><span class="url">competitor.com</span><img src="/assets/icon128.png" width="18" height="18" alt=""></div>
+        <div class="window-body">
+          <div class="page">
+            <span class="beam"></span>
+            <div class="wf-r"><span class="wf-bars"><i class="w-logo"></i><i></i><i></i></span><span class="px" style="--d:.05"><b>Google Tag Manager</b></span></div>
+            <div class="wf-hero"><i class="w-head"></i><i class="w-head short"></i><i class="w-sub"></i></div>
+            <div class="wf-r"><i class="w-btn"></i><span class="px" style="--d:.3"><b>Meta Pixel</b></span></div>
+            <div class="wf-cards"><i></i><i></i></div>
+            <div class="wf-r"><span class="wf-lines"><i></i><i></i></span><span class="px" style="--d:.6"><b>GA4</b></span></div>
+            <div class="wf-r"><span class="wf-lines"><i></i><i></i></span><span class="px" style="--d:.85"><b>TikTok Pixel</b></span></div>
+          </div>
+          <div class="panel">
+            <p class="panel-head"><img src="/assets/icon128.png" width="16" height="16" alt=""> Superpixel</p>
+            <div class="panel-col">
+              <p class="panel-group">Tags</p>
+              <ul class="panel-tags">
+                <li><span>Google Tag Manager</span></li>
+                <li><span>Meta Pixel</span></li>
+                <li><span>GA4</span></li>
+                <li><span>TikTok Pixel</span></li>
+              </ul>
+            </div>
+            <div class="panel-col">
+              <p class="panel-group">Ads</p>
+              <ul>
+                <li><span>Google</span><em class="chip c-ok">confirmed</em></li>
+                <li><span>Meta</span><em class="chip c-adv">advertiser</em></li>
+                <li><span>LinkedIn</span><em class="chip c-ok">confirmed</em></li>
+                <li><span>TikTok</span><em class="chip c-kw">keyword</em></li>
+                <li><span>Snapchat</span><em class="chip c-name">name</em></li>
+              </ul>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="panel" aria-hidden="true">
-        <p class="panel-head"><img src="/assets/icon128.png" width="18" height="18" alt=""> Running ads</p>
-        <ul>
-          <li><span>Google Ads Transparency</span><em class="chip c-ok">confirmed</em></li>
-          <li><span>Meta Ad Library</span><em class="chip c-adv">advertiser</em></li>
-          <li><span>LinkedIn Ad Library</span><em class="chip c-ok">confirmed</em></li>
-          <li><span>TikTok Ad Library</span><em class="chip c-kw">keyword</em></li>
-          <li><span>Snapchat Ads Gallery</span><em class="chip c-name">name</em></li>
-        </ul>
       </div>
     </figure>
   </div>
@@ -108,6 +126,14 @@
         <p class="layer-key" aria-hidden="true">A</p>
         <h3>Layer A: on-site tags</h3>
         <p>Every marketing, ads and analytics tag installed on the site, with the account IDs behind them.</p>
+        <figure class="example">
+          <figcaption>What a result looks like (illustration, the IDs are placeholders)</figcaption>
+          <dl class="ids">
+            <div><dt>Google Tag Manager</dt><dd>GTM-XXXXXXX</dd></div>
+            <div><dt>GA4</dt><dd>G-XXXXXXXXXX</dd></div>
+            <div><dt>Meta Pixel</dt><dd>ID 1234567890</dd></div>
+          </dl>
+        </figure>
         <ul class="tags" aria-label="Detected tags include">
           <li>Meta Pixel</li><li>Google Ads</li><li>GA4</li><li>Google Tag Manager</li><li>LinkedIn Insight</li><li>TikTok Pixel</li><li>X</li><li>Pinterest</li><li>Snap</li><li>Reddit</li><li>Microsoft UET</li><li>Quora</li><li>Taboola</li><li>Outbrain</li><li>Criteo</li><li>Amazon</li><li>HubSpot</li><li>Microsoft Clarity</li><li>Hotjar</li><li>AdRoll</li><li>Yandex Metrica</li><li>Klaviyo</li><li class="more">and more</li>
         </ul>
@@ -128,12 +154,12 @@
 
     <h3 class="sub-h">In the side panel</h3>
     <ul class="features">
-      <li><strong>Scan a domain or the current tab.</strong> Type <code>example.com</code> and click Scan, or click Current tab.</li>
-      <li><strong>Only confirmed.</strong> One switch hides everything except ads whose landing page points back to the scanned domain.</li>
-      <li><strong>Export as JSON.</strong> Settings has "Export last scan as JSON" for the full result.</li>
-      <li><strong>Local cache.</strong> Reopening the panel shows your last scan. Rescan forces a fresh pull.</li>
-      <li><strong>Honest statuses.</strong> When a platform changes its response format, its card says "changed" instead of quietly reporting no results.</li>
-      <li><strong>No build step.</strong> Manifest V3 and plain JavaScript you can read.</li>
+      <li><span class="f-ico" aria-hidden="true"><svg class="ico"><use href="#i-scan"/></svg></span><div><strong>Scan a domain or the current tab.</strong> Type <code>example.com</code> and click Scan, or click Current tab.</div></li>
+      <li><span class="f-ico" aria-hidden="true"><svg class="ico"><use href="#i-check"/></svg></span><div><strong>Only confirmed.</strong> One switch hides everything except ads whose landing page points back to the scanned domain.</div></li>
+      <li><span class="f-ico" aria-hidden="true"><svg class="ico"><use href="#i-export"/></svg></span><div><strong>Export as JSON.</strong> Settings has "Export last scan as JSON" for the full result.</div></li>
+      <li><span class="f-ico" aria-hidden="true"><svg class="ico"><use href="#i-cache"/></svg></span><div><strong>Local cache.</strong> Reopening the panel shows your last scan. Rescan forces a fresh pull.</div></li>
+      <li><span class="f-ico" aria-hidden="true"><svg class="ico"><use href="#i-status"/></svg></span><div><strong>Honest statuses.</strong> When a platform changes its response format, its card says "changed" instead of quietly reporting no results.</div></li>
+      <li><span class="f-ico" aria-hidden="true"><svg class="ico"><use href="#i-code"/></svg></span><div><strong>No build step.</strong> Manifest V3 and plain JavaScript you can read.</div></li>
     </ul>
   </div>
 </section>
@@ -217,11 +243,21 @@
 
 <section class="section closing">
   <div class="wrap closing-inner">
-    <h2>Free, MIT licensed, on GitHub</h2>
-    <p>Read the code, open an issue, or send a pull request.</p>
-    <div class="cta">
-      <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel">View on GitHub</a>
-      <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/issues">Report a bug</a>
+    <div class="closing-copy">
+      <h2>Free, MIT licensed, on GitHub</h2>
+      <p>Read the code, open an issue, or send a pull request.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>View on GitHub</a>
+        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/issues">Report a bug</a>
+      </div>
+    </div>
+    <div class="clone">
+      <p class="clone-h">Clone the repository</p>
+      <div class="clone-box">
+        <pre><code><span class="prompt" aria-hidden="true">$ </span>git clone https://github.com/PiotrZapolski/superpixel.git</code></pre>
+        <button class="copy" type="button" hidden data-copy="git clone https://github.com/PiotrZapolski/superpixel.git" data-done="Copied" aria-live="polite"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-copy"/></svg><span>Copy</span></button>
+      </div>
+      <p class="clone-note">Then load the folder with "Load unpacked" in <code>chrome://extensions</code>. <a href="#install">All install steps</a></p>
     </div>
   </div>
 </section>
@@ -239,5 +275,19 @@
     </nav>
   </div>
 </footer>
+<script>
+document.querySelectorAll(".copy").forEach(function (b) {
+  if (!navigator.clipboard) return;
+  var label = b.querySelector("span");
+  var text = label.textContent;
+  b.hidden = false;
+  b.addEventListener("click", function () {
+    navigator.clipboard.writeText(b.dataset.copy).then(function () {
+      label.textContent = b.dataset.done;
+      setTimeout(function () { label.textContent = text; }, 1800);
+    });
+  });
+});
+</script>
 </body>
 </html>
