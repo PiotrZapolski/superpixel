@@ -1,8 +1,8 @@
 // Label dictionaries for the social graphic (PL default, EN). Pure, no DOM (tested under Node).
 // The report page UI itself stays in English like the side panel; only the graphic is bilingual.
 
-export const LANGS = ['pl', 'en'];
-export const DEFAULT_LANG = 'pl';
+export const LANGS = ['en', 'pl'];
+export const DEFAULT_LANG = 'en';
 
 const MONTHS = {
   pl: ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'],
@@ -76,7 +76,7 @@ const DICT = {
 };
 
 /**
- * Dictionary for a language, falling back to Polish.
+ * Dictionary for a language, falling back to English.
  * @param {string} lang
  */
 export function labels(lang) {

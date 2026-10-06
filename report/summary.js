@@ -312,7 +312,7 @@ export function factLines(facts, lang) {
  * @param {object} data scan
  * @param {{lang?:string, onlyConfirmed?:boolean}} [opts]
  */
-export function graphicModel(data, { lang = 'pl', onlyConfirmed = false } = {}) {
+export function graphicModel(data, { lang = 'en', onlyConfirmed = false } = {}) {
   if (!hasScan(data)) return null;
   const L = labels(lang);
   const k = kpis(data, { onlyConfirmed });
