@@ -299,6 +299,8 @@ td { color: var(--ink-soft); }
 .lib-notes strong { color: var(--ink); display: block; margin-bottom: 2px; }
 
 /* Install */
+/* Grid items default to min-width: auto, so a long <pre> line widened the column past the viewport. */
+.install-grid > *, .lib-grid > *, .privacy-grid > *, .layers > *, .features > *, .hero-grid > * { min-width: 0; }
 .install-grid { display: grid; gap: 40px; }
 @media (min-width: 900px) { .install-grid { grid-template-columns: 1.4fr 1fr; gap: 64px; align-items: start; } }
 .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; }
