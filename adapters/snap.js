@@ -19,7 +19,9 @@ export const EU_COUNTRIES = ['at', 'be', 'bg', 'hr', 'cy', 'cz', 'dk', 'ee', 'fi
 const NAME_KEYS = ['paying_advertiser_name', 'profile_name', 'brand_name'];
 const SNAP_HOST_RE = /(^|\.)(snapchat\.com|snap\.com|sc-cdn\.net|sc-static\.net|snapads\.com|snapkit\.com)$/i;
 const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|mp4|mov|webm|m3u8)(\?|#|$)/i;
-const RETRY_MS = [5000, 15000];
+// Snap's 429 is short-lived (a re-scan a minute later usually succeeds): about 95s of backoff in
+// total. Snap runs in parallel with the other adapters, so the wait costs little.
+export const RETRY_MS = [5000, 15000, 30000, 45000];
 const RETRY_AFTER_MAX_S = 60;
 export const NAME_MATCH_NOTE = 'Name match only, Snapchat does not expose landing pages';
 

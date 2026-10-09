@@ -44,6 +44,14 @@ export function buildSearchUrl({ region = 'all', q = '', now = Date.now(), query
 
 /** Max search-page captures (including DOM fallbacks) before the detail phase. */
 export const MAX_SEARCH_CAPTURES = 4;
+/** Retries of a search capture whose tab closed or timed out empty, per adapter run (no budget). */
+export const MAX_CAPTURE_RETRIES = 2;
+const CAPTURE_RETRY_DELAY_MS = 2000;
+const TRANSIENT_CAPTURE_ERRORS = new Set(['tab_closed', 'timeout']);
+const CAPTURE_FAILURE_TEXT = {
+  tab_closed: 'capture tab closed right after loading',
+  timeout: 'page load timed out',
+};
 
 /**
  * Ordered search plan (region=all): keyword search for the brand (query_type 1), advertiser-name
@@ -346,8 +354,25 @@ export async function search(seeds, ctx) {
   const links = deepLinks(seeds);
   const state = {
     raw: new Map(), sawSearchPayload: false, anyOk: false, rateLimited: false, details: 0,
+    retriesLeft: MAX_CAPTURE_RETRIES, captureFailure: '',
   };
   const progress = (t) => { try { ctx.progress && ctx.progress(t); } catch { /* ignore */ } };
+  const log = (level, msg) => { try { ctx.log && ctx.log(level, msg); } catch { /* ignore */ } };
+
+  // A search capture whose tab closed (or timed out) before anything was captured is retried once
+  // after a short pause, without spending the search budget; at most MAX_CAPTURE_RETRIES per run.
+  const captureOnce = async (kind, fn, url, opts) => {
+    const empty = (c) => !(c.payloads && c.payloads.length) && !(c.hrefs && c.hrefs.length);
+    let cap = (await fn.call(ctx, url, opts)) || {};
+    if (empty(cap) && TRANSIENT_CAPTURE_ERRORS.has(cap.error) && state.retriesLeft > 0) {
+      state.retriesLeft -= 1;
+      log('warn', `${kind} capture ${cap.error}, retrying in ${CAPTURE_RETRY_DELAY_MS}ms`);
+      await (typeof ctx.sleep === 'function' ? ctx.sleep : sleep)(CAPTURE_RETRY_DELAY_MS, ctx.signal);
+      cap = (await fn.call(ctx, url, opts)) || {};
+    }
+    if (empty(cap) && TRANSIENT_CAPTURE_ERRORS.has(cap.error)) state.captureFailure = cap.error;
+    return cap;
+  };
 
   const addRaw = (ad) => {
     if (!ad || !ad.id) return;
@@ -395,7 +420,7 @@ export async function search(seeds, ctx) {
       const url = buildSearchUrl({ region, q, now: Date.now(), queryType });
       if (ctx.throttle) await ctx.throttle();
       progress(`Searching ${viaName ? 'advertiser ' : ''}"${q}" (region ${region})`);
-      const cap = (await ctx.capture(url, { platform: 'tiktok', waitMs: 8000 })) || {};
+      const cap = await captureOnce('Search', ctx.capture, url, { platform: 'tiktok', waitMs: 8000 });
       let parsedAny = false;
       let count = 0;
       for (const p of cap.payloads || []) {
@@ -412,7 +437,7 @@ export async function search(seeds, ctx) {
       if (!parsedAny && !state.rateLimited && budget > 0 && typeof ctx.captureDom === 'function') {
         budget -= 1;
         progress('Reading TikTok results from the page');
-        const dom = (await ctx.captureDom(url, { waitMs: 8000 })) || {};
+        const dom = await captureOnce('DOM search', ctx.captureDom, url, { waitMs: 8000 });
         const ids = adIdsFromHrefs(dom.hrefs);
         if (ids.length) {
           state.anyOk = true;
@@ -487,7 +512,8 @@ export async function search(seeds, ctx) {
       return result('empty', `No TikTok ads point to ${domain} (searched: ${searched})`, []);
     }
     if (state.sawSearchPayload) return result('changed', 'TikTok changed its response format', []);
-    return result('error', 'TikTok search data was not captured (page did not load)', []);
+    const why = CAPTURE_FAILURE_TEXT[state.captureFailure] || 'page did not load';
+    return result('error', `TikTok search data was not captured (${why})`, []);
   } catch (err) {
     if (ctx && ctx.signal && ctx.signal.aborted) return finish('error', 'Stopped');
     return finish('error', `TikTok search failed: ${(err && err.message) || err}`);

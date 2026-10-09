@@ -5,6 +5,9 @@ import { logInfo, logWarn, safeUrl, errText } from './log.js';
 const MAX_PAYLOADS_PER_TAB = 400;
 const LOAD_TIMEOUT_MS = 20000;
 const POLL_MS = 250;
+// Chrome can swap a tab for another one (prerender, process swap); the old id may be reported as
+// removed just before onReplaced arrives. Wait this long before treating a removal as a close.
+const REPLACE_GRACE_MS = 500;
 
 let scanWindowId = null;
 let anchorTabId = null;
@@ -12,8 +15,22 @@ let windowPromise = null;
 
 /** Tabs opened by this module (the relay asks whether its tab is one of them). */
 const captureTabs = new Set();
-/** tabId -> {payloads:[], lastAt:number, closed:boolean} */
+/**
+ * tabId -> session. The diagnostics fields come from chrome.tabs events:
+ * {payloads:[], lastAt:number, closed:boolean, tabId:number|null, lastUrl:string, lastStatus:string,
+ *  discarded:boolean, replaced:number, removeInfo:{windowClosing:boolean, scanWindow:boolean}|null,
+ *  closeTimer:any}
+ */
 const sessions = new Map();
+/** Capture tab ids removed a moment ago (onReplaced may still follow the removal). */
+const recentlyRemoved = new Set();
+
+function newSession() {
+  return {
+    payloads: [], lastAt: 0, closed: false, tabId: null,
+    lastUrl: '', lastStatus: '', discarded: false, replaced: 0, removeInfo: null, closeTimer: null,
+  };
+}
 
 // One capture tab at a time (meta and tiktok share it).
 let mutexTail = Promise.resolve();
@@ -32,12 +49,77 @@ function delay(ms) {
 }
 
 if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onRemoved) {
-  chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+    if (captureTabs.has(tabId)) {
+      recentlyRemoved.add(tabId);
+      setTimeout(() => recentlyRemoved.delete(tabId), 5000);
+    }
     captureTabs.delete(tabId);
-    const s = sessions.get(tabId);
-    if (s) s.closed = true;
     if (tabId === anchorTabId) anchorTabId = null;
+    const s = sessions.get(tabId);
+    if (!s) return;
+    s.removeInfo = {
+      windowClosing: !!(removeInfo && removeInfo.isWindowClosing),
+      scanWindow: !!(removeInfo && scanWindowId != null && removeInfo.windowId === scanWindowId),
+    };
+    if (!s.closeTimer) {
+      s.closeTimer = setTimeout(() => {
+        s.closeTimer = null;
+        if (sessions.get(tabId) === s) s.closed = true;
+      }, REPLACE_GRACE_MS);
+    }
   });
+}
+if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onUpdated) {
+  chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+    const s = sessions.get(tabId);
+    if (!s || !info) return;
+    const url = info.url || (tab && tab.url) || '';
+    if (url) s.lastUrl = url;
+    if (info.status) s.lastStatus = info.status;
+    if (info.discarded) s.discarded = true;
+  });
+}
+if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onReplaced) {
+  // Chrome swapped the tab (prerender, process swap): the capture continues under the new id.
+  chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+    if (removedTabId === anchorTabId) anchorTabId = addedTabId;
+    const s = sessions.get(removedTabId);
+    if (!s && !captureTabs.has(removedTabId) && !recentlyRemoved.has(removedTabId)) return;
+    captureTabs.delete(removedTabId);
+    recentlyRemoved.delete(removedTabId);
+    captureTabs.add(addedTabId);
+    if (s) {
+      sessions.delete(removedTabId);
+      sessions.set(addedTabId, s);
+      s.tabId = addedTabId;
+      s.replaced += 1;
+      s.removeInfo = null;
+      if (s.closeTimer) clearTimeout(s.closeTimer);
+      s.closeTimer = null;
+      s.closed = false;
+    }
+    logInfo('capture', `Tab replaced ${removedTabId} -> ${addedTabId}${s && s.lastUrl ? ` on ${safeUrl(s.lastUrl)}` : ''}`);
+  });
+}
+
+/** Reason detail for the close log line: last url (no query), status, how the tab went away. */
+function closeDetail(s) {
+  const parts = [`last url ${s.lastUrl ? safeUrl(s.lastUrl) : '-'}`, `status ${s.lastStatus || '-'}`];
+  if (s.removeInfo) {
+    parts.push(`window closing: ${s.removeInfo.windowClosing ? 'yes' : 'no'}`);
+    parts.push(`scan window: ${s.removeInfo.scanWindow ? 'yes' : 'no'}`);
+  } else {
+    parts.push('no remove event');
+  }
+  if (s.discarded) parts.push('discarded');
+  if (s.replaced) parts.push(`replaced ${s.replaced}x`);
+  return parts.join(', ');
+}
+
+function errorWithDetail(error, s) {
+  if (error === 'tab_closed' || error === 'timeout') return `${error} (${closeDetail(s)})`;
+  return error;
 }
 if (typeof chrome !== 'undefined' && chrome.windows && chrome.windows.onRemoved) {
   chrome.windows.onRemoved.addListener((windowId) => {
@@ -111,13 +193,17 @@ export function waitForComplete(tabId, timeoutMs = LOAD_TIMEOUT_MS) {
   return new Promise((resolve) => {
     let done = false;
     let timer = null;
+    let removeTimer = null;
+    const hasReplaced = !!(chrome.tabs && chrome.tabs.onReplaced);
     const finish = (v) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      clearTimeout(removeTimer);
       try {
         chrome.tabs.onUpdated.removeListener(onUpdated);
         chrome.tabs.onRemoved.removeListener(onRemoved);
+        if (hasReplaced) chrome.tabs.onReplaced.removeListener(onReplaced);
       } catch {
         // ignore
       }
@@ -129,11 +215,26 @@ export function waitForComplete(tabId, timeoutMs = LOAD_TIMEOUT_MS) {
       if (info.status === 'complete' && isReal(tab && tab.url)) finish(true);
     };
     const onRemoved = (id) => {
-      if (id === tabId) finish(false);
+      if (id !== tabId || removeTimer) return;
+      removeTimer = setTimeout(() => finish(false), REPLACE_GRACE_MS);
+    };
+    // A replaced tab (prerender, process swap) lives on under the new id.
+    const onReplaced = (addedId, removedId) => {
+      if (removedId !== tabId) return;
+      tabId = addedId;
+      clearTimeout(removeTimer);
+      removeTimer = null;
+      chrome.tabs
+        .get(addedId)
+        .then((tab) => {
+          if (tab.status === 'complete' && isReal(tab.url) && !tab.pendingUrl) finish(true);
+        })
+        .catch(() => {});
     };
     try {
       chrome.tabs.onUpdated.addListener(onUpdated);
       chrome.tabs.onRemoved.addListener(onRemoved);
+      if (hasReplaced) chrome.tabs.onReplaced.addListener(onReplaced);
     } catch {
       finish(false);
       return;
@@ -151,6 +252,11 @@ export function waitForComplete(tabId, timeoutMs = LOAD_TIMEOUT_MS) {
 /** @param {number} tabId */
 export async function closeScanTab(tabId) {
   captureTabs.delete(tabId);
+  const s = sessions.get(tabId);
+  if (s && s.closeTimer) {
+    clearTimeout(s.closeTimer);
+    s.closeTimer = null;
+  }
   sessions.delete(tabId);
   if (tabId == null) return;
   try {
@@ -248,8 +354,10 @@ export async function openCaptureTab(url, opts = {}) {
     signal,
     until,
   } = opts;
-  const session = { payloads: [], lastAt: 0, closed: false };
+  const session = newSession();
   let tabId = null;
+  // The live id: session.tabId follows chrome.tabs.onReplaced.
+  const liveId = () => (session.tabId != null ? session.tabId : tabId);
   let tabUrl = '';
   let error = '';
   let release = null;
@@ -267,11 +375,14 @@ export async function openCaptureTab(url, opts = {}) {
 
     tabId = await createTab(url, {
       showScanTabs,
-      beforeNavigate: (id) => sessions.set(id, session),
+      beforeNavigate: (id) => {
+        session.tabId = id;
+        sessions.set(id, session);
+      },
     });
     logInfo('capture', `Open ${opts.platform || ''} tab ${safeUrl(url)}`);
 
-    const loaded = await waitForComplete(tabId, LOAD_TIMEOUT_MS);
+    const loaded = await waitForComplete(liveId(), LOAD_TIMEOUT_MS);
     if (!loaded) logWarn('capture', `Load timeout ${safeUrl(url)}`);
     const loadedAt = Date.now();
 
@@ -283,7 +394,7 @@ export async function openCaptureTab(url, opts = {}) {
     });
 
     for (let i = 0; i < scrolls && (r === 'time' || r === 'stop') && !untilHit(); i++) {
-      await sendScroll(tabId);
+      await sendScroll(liveId());
       r = await waitLoop(scrollDelayMs, session, signal, untilHit);
     }
 
@@ -296,16 +407,16 @@ export async function openCaptureTab(url, opts = {}) {
     else if (r === 'closed') error = 'tab_closed';
     else if (!loaded && session.payloads.length === 0) error = 'timeout';
 
-    if (!session.closed) tabUrl = await tabUrlOf(tabId);
+    if (!session.closed) tabUrl = await tabUrlOf(liveId());
   } catch (e) {
     error = (e && e.message) || 'capture failed';
     logWarn('capture', `Capture failed ${safeUrl(url)}: ${errText(e)}`);
   } finally {
-    if (tabId != null) await closeScanTab(tabId);
+    if (tabId != null) await closeScanTab(liveId());
     if (release) release();
   }
   if (tabId != null) {
-    const msg = `Close tab ${safeUrl(url)}: ${session.payloads.length} payloads${error ? `, ${error}` : ''}${tabUrl ? `, ended on ${safeUrl(tabUrl)}` : ''}`;
+    const msg = `Close tab ${safeUrl(url)}: ${session.payloads.length} payloads${error ? `, ${errorWithDetail(error, session)}` : ''}${tabUrl ? `, ended on ${safeUrl(tabUrl)}` : ''}`;
     if (error && error !== 'aborted') logWarn('capture', msg);
     else logInfo('capture', msg);
   }
@@ -321,8 +432,9 @@ export async function openCaptureTab(url, opts = {}) {
  */
 export async function openCaptureTabDom(url, opts = {}) {
   const { waitMs = 6000, showScanTabs = false, signal } = opts;
-  const session = { payloads: [], lastAt: 0, closed: false };
+  const session = newSession();
   let tabId = null;
+  const liveId = () => (session.tabId != null ? session.tabId : tabId);
   let tabUrl = '';
   let error = '';
   let dom = { text: '', hrefs: [] };
@@ -332,10 +444,13 @@ export async function openCaptureTabDom(url, opts = {}) {
     if (signal && signal.aborted) return { text: '', hrefs: [], tabUrl: '', error: 'aborted' };
     tabId = await createTab(url, {
       showScanTabs,
-      beforeNavigate: (id) => sessions.set(id, session),
+      beforeNavigate: (id) => {
+        session.tabId = id;
+        sessions.set(id, session);
+      },
     });
     logInfo('capture', `Open DOM tab ${safeUrl(url)}`);
-    const loaded = await waitForComplete(tabId, LOAD_TIMEOUT_MS);
+    const loaded = await waitForComplete(liveId(), LOAD_TIMEOUT_MS);
     if (!loaded) logWarn('capture', `Load timeout ${safeUrl(url)}`);
     // Wait waitMs, extended while network captures keep arriving (bounded to 2x waitMs).
     let r = await waitLoop(waitMs, session, signal, null);
@@ -345,8 +460,8 @@ export async function openCaptureTabDom(url, opts = {}) {
     if (r === 'aborted') error = 'aborted';
     else if (r === 'closed') error = 'tab_closed';
     else {
-      dom = await sendDomCommand(tabId);
-      tabUrl = await tabUrlOf(tabId);
+      dom = await sendDomCommand(liveId());
+      tabUrl = await tabUrlOf(liveId());
       if (!loaded && !dom.text) error = 'timeout';
       else if (!dom.text && !dom.hrefs.length) error = 'no_dom';
     }
@@ -354,11 +469,11 @@ export async function openCaptureTabDom(url, opts = {}) {
     error = (e && e.message) || 'capture failed';
     logWarn('capture', `DOM capture failed ${safeUrl(url)}: ${errText(e)}`);
   } finally {
-    if (tabId != null) await closeScanTab(tabId);
+    if (tabId != null) await closeScanTab(liveId());
     if (release) release();
   }
   if (tabId != null) {
-    const msg = `Close DOM tab ${safeUrl(url)}: ${dom.hrefs.length} links, ${dom.text.length} chars${error ? `, ${error}` : ''}`;
+    const msg = `Close DOM tab ${safeUrl(url)}: ${dom.hrefs.length} links, ${dom.text.length} chars${error ? `, ${errorWithDetail(error, session)}` : ''}`;
     if (error && error !== 'aborted') logWarn('capture', msg);
     else logInfo('capture', msg);
   }
