@@ -27,6 +27,7 @@ import {
   advertiserNameSeeds,
   nameQueries,
   keepConfirmedAdvertisers,
+  shouldSaveLastScan,
 } from '../lib/model.js';
 import {
   MAX_ENTRIES,
@@ -448,4 +449,14 @@ test('makeAdvertiser defaults domains/note; accountNote and advertiserSummary', 
     { primary: 1, other: 2, mention: 1, sharedAccounts: 1 },
   );
   assert.deepEqual(advertiserSummary(undefined), { primary: 0, other: 0, mention: 0, sharedAccounts: 0 });
+});
+
+test('shouldSaveLastScan: a stopped scan without findings keeps the previous lastScan', () => {
+  const empty = [{ platform: 'meta', ads: [], advertisers: [] }, { platform: 'snap', status: 'skipped', ads: [], advertisers: [] }];
+  assert.equal(shouldSaveLastScan(false, empty), true);
+  assert.equal(shouldSaveLastScan(false, []), true);
+  assert.equal(shouldSaveLastScan(true, empty), false);
+  assert.equal(shouldSaveLastScan(true, []), false);
+  assert.equal(shouldSaveLastScan(true, [{ platform: 'meta', ads: [{ id: '1' }], advertisers: [] }]), true);
+  assert.equal(shouldSaveLastScan(true, [{ platform: 'google', ads: [], advertisers: [{ id: 'a' }] }]), true);
 });

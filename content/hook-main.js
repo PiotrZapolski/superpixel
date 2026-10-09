@@ -20,6 +20,7 @@
 
   var MAX_BODY = 3 * 1024 * 1024;
   var MAX_REQ_BODY = 4096;
+  var MAX_STACK = 1500;
   var SKIP_HOST_RE = /^(?:https?:)?\/\/mon[a-z0-9-]*\.tiktokv\.com(?:[:/?#]|$)/i;
 
   function matches(url) {
@@ -80,6 +81,30 @@
     } catch (e) {
       // ignore
     }
+  }
+
+  // window.close: TikTok closed our capture tabs right after load (issue #17). In the top frame,
+  // close() does not close here: it posts a 'superpixel:window-close' message with the caller's
+  // stack instead. content/relay.js closes the tab natively when this is not a capture tab, so
+  // normal browsing behaves as before.
+  try {
+    if (window.top === window && typeof window.close === 'function') {
+      window.close = function () {
+        try {
+          var stack = '';
+          try {
+            stack = String(new Error('window.close').stack || '');
+          } catch (e2) {
+            stack = '';
+          }
+          post('superpixel:window-close', 0, stack.slice(0, MAX_STACK), '');
+        } catch (e) {
+          // ignore
+        }
+      };
+    }
+  } catch (e) {
+    // ignore
   }
 
   // fetch

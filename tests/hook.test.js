@@ -135,3 +135,42 @@ test('fetch observes matching calls and returns the original promise', async () 
   assert.equal(messages[0].status, 200);
   assert.match(messages[0].reqBody, /AdLibrarySearchPaginationQuery/);
 });
+
+/** Run hook-main.js in a minimal window with a counting close(); `top` decides top frame or not. */
+function loadWithClose(isTop) {
+  const state = { closed: 0, messages: [] };
+  const origClose = function () {
+    state.closed++;
+  };
+  const sandbox = {
+    URL,
+    location: { href: 'https://library.tiktok.com/ads' },
+    close: origClose,
+    postMessage(m) {
+      state.messages.push(m);
+    },
+  };
+  sandbox.window = sandbox;
+  sandbox.top = isTop ? sandbox : {};
+  vm.createContext(sandbox);
+  vm.runInContext(SRC, sandbox);
+  return { sandbox, state, origClose };
+}
+
+test('window.close in the top frame does not close and posts the caller stack', () => {
+  const { sandbox, state } = loadWithClose(true);
+  vm.runInContext('(function pageCloser() { window.close(); })()', sandbox);
+  assert.equal(state.closed, 0);
+  assert.equal(state.messages.length, 1);
+  const m = state.messages[0];
+  assert.equal(m.__superpixel, true);
+  assert.equal(m.url, 'superpixel:window-close');
+  assert.equal(m.status, 0);
+  assert.match(m.body, /pageCloser/);
+  assert.ok(m.body.length <= 1500);
+});
+
+test('window.close in a subframe is left untouched', () => {
+  const { sandbox, origClose } = loadWithClose(false);
+  assert.equal(sandbox.close, origClose);
+});
