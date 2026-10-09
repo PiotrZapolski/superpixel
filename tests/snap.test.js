@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { meta, buildSnapBody, parseSnapAds, EU_COUNTRIES, NAME_MATCH_NOTE, retryAfterMs, search } from '../adapters/snap.js';
+import { meta, buildSnapBody, parseSnapAds, EU_COUNTRIES, NAME_MATCH_NOTE, retryAfterMs, RETRY_MS, search } from '../adapters/snap.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const SNAP = JSON.parse(fixture('snap-search.json'));
@@ -178,7 +178,11 @@ test('search() honours Retry-After on 429, logs it, and recovers', async () => {
   assert.equal(logs[0].msg.split('body: ')[1].length, 200);
 });
 
-test('search() gives up after 2 retries with rate_limited, keeping the return shape', async () => {
+test('backoff steps are 5s, 15s, 30s, 45s (about 95s in total)', () => {
+  assert.deepEqual(RETRY_MS, [5000, 15000, 30000, 45000]);
+});
+
+test('search() gives up after 4 retries with rate_limited, keeping the return shape', async () => {
   const logs = [];
   let n = 0;
   const ctx = {
@@ -188,11 +192,13 @@ test('search() gives up after 2 retries with rate_limited, keeping the return sh
   };
   const res = await search({ domain: 'x.com', brand: 'Acme' }, ctx);
   assert.equal(res.status, 'rate_limited');
-  assert.equal(n, 3);
+  assert.equal(n, 5);
   assert.deepEqual(logs.map((l) => l.msg.split(', body')[0]), [
     '429 attempt 1, retry-after 0, waiting 0ms',
     '429 attempt 2, retry-after 0, waiting 0ms',
-    '429 attempt 3, retry-after 0, giving up',
+    '429 attempt 3, retry-after 0, waiting 0ms',
+    '429 attempt 4, retry-after 0, waiting 0ms',
+    '429 attempt 5, retry-after 0, giving up',
   ]);
   assert.match(logs[0].msg, /body: Too Many Requests$/);
 });

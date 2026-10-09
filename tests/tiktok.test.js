@@ -15,6 +15,7 @@ import {
   search,
   searchPlan,
   MAX_SEARCH_CAPTURES,
+  MAX_CAPTURE_RETRIES,
 } from '../adapters/tiktok.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
@@ -277,4 +278,71 @@ test('search() spends only the leftover budget on per-region retries', async () 
   const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
   assert.deepEqual(searches, ['1:all', '2:all', '1:DE', '1:FR']);
   assert.equal(res.status, 'empty');
+});
+
+// ---- transient capture failures (tab closed / load timeout) ----
+
+const searchPayload = () => ({ payloads: [{ url: 'https://library.tiktok.com/api/v1/search?region=all', status: 200, body: fixture('tiktok-search-a.json') }] });
+
+test('search() retries a tab_closed search capture once, without spending the search budget', async () => {
+  const calls = [];
+  const sleeps = [];
+  const logs = [];
+  const ctx = {
+    settings: { tiktokRegions: [], tiktokDetails: 0 },
+    sleep: async (ms) => { sleeps.push(ms); },
+    log: (level, msg) => logs.push({ level, msg }),
+    async capture(url) {
+      calls.push(url);
+      if (calls.length === 1) return { payloads: [], tabUrl: '', error: 'tab_closed' };
+      return searchPayload();
+    },
+    async captureDom() { throw new Error('DOM fallback must not run after a successful retry'); },
+  };
+  // A plan of 4 searches (= MAX_SEARCH_CAPTURES): all 4 still run after the retry.
+  await search({ domain: 'decathlon.com', brand: 'Decathlon', advertiserNames: ['Decathlon SE', 'Decathlon Retail'] }, ctx);
+  assert.equal(calls.length, MAX_SEARCH_CAPTURES + 1);
+  assert.equal(calls[0], calls[1], 'the retry repeats the same search');
+  assert.deepEqual(sleeps, [2000]);
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].level, 'warn');
+  assert.match(logs[0].msg, /tab_closed, retrying/);
+});
+
+test('search() caps capture retries per run and names the reason when the tab keeps closing', async () => {
+  let captures = 0;
+  let doms = 0;
+  const sleeps = [];
+  const ctx = {
+    settings: { tiktokRegions: [], tiktokDetails: 0 },
+    sleep: async (ms) => { sleeps.push(ms); },
+    async capture() { captures += 1; return { payloads: [], tabUrl: '', error: 'tab_closed' }; },
+    async captureDom() { doms += 1; return { text: '', hrefs: [], tabUrl: '', error: 'tab_closed' }; },
+  };
+  const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
+  assert.equal(sleeps.length, MAX_CAPTURE_RETRIES);
+  // Budget 4 (capture + DOM for each of the 2 planned searches) plus the 2 retries.
+  assert.equal(captures + doms, MAX_SEARCH_CAPTURES + MAX_CAPTURE_RETRIES);
+  assert.equal(res.status, 'error');
+  assert.equal(res.message, 'TikTok search data was not captured (capture tab closed right after loading)');
+});
+
+test('search() names a load timeout, and keeps the old wording for other failures', async () => {
+  const timeoutCtx = {
+    settings: { tiktokRegions: [], tiktokDetails: 0 },
+    sleep: async () => {},
+    async capture() { return { payloads: [], tabUrl: '', error: 'timeout' }; },
+  };
+  const t = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, timeoutCtx);
+  assert.equal(t.message, 'TikTok search data was not captured (page load timed out)');
+
+  let slept = 0;
+  const otherCtx = {
+    settings: { tiktokRegions: [], tiktokDetails: 0 },
+    sleep: async () => { slept += 1; },
+    async capture() { return { payloads: [], tabUrl: '', error: '' }; },
+  };
+  const o = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, otherCtx);
+  assert.equal(slept, 0, 'no retry without a transient error');
+  assert.equal(o.message, 'TikTok search data was not captured (page did not load)');
 });
