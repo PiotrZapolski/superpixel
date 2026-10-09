@@ -87,8 +87,8 @@ class SiteTestCase(unittest.TestCase):
             self.assertIn(f'lang="{lang}"', html, rel)
             self.assertIn('href="/privacy/"', html, rel)
             self.assertIn('href="/pl/privacy/"', html, rel)
-            self.assertNotIn(" - ", html, rel)
-            self.assertNotIn("-", html, rel)
+            for dash in (chr(0x2014), chr(0x2013)):  # em and en dash: house style forbids them
+                self.assertNotIn(dash, html, rel)
         for rel, target in (("index.html", "/privacy/"), ("pl/index.html", "/pl/privacy/")):
             with open(os.path.join(site, rel), encoding="utf-8") as f:
                 html = f.read()
