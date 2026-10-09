@@ -10,6 +10,7 @@ import {
   placementsText,
   headerDeepLinks,
 } from './view.js';
+import { platformIcon } from './platform-icons.js';
 
 const PLATFORM_ORDER = ['google', 'meta', 'tiktok', 'linkedin', 'bing', 'snap'];
 
@@ -540,6 +541,8 @@ function buildCardDom(entry, id) {
   const labelEl = el('span', { className: 'platform-label', text: id });
   const statusEl = el('span', { className: 'status-chip status-running', text: 'Waiting' });
   titleRow.appendChild(chevronEl);
+  const iconEl = platformIcon(id);
+  if (iconEl) titleRow.appendChild(iconEl);
   titleRow.appendChild(labelEl);
   titleRow.appendChild(statusEl);
   headerEl.appendChild(titleRow);
@@ -590,6 +593,8 @@ function buildEmptyDom(entry, id, label, coverage) {
   const nameEl = el('span', { className: 'platform-empty-name', text: label || id });
   const statusEl = el('span', { className: 'platform-empty-status', text: 'No ads' });
   const coverageEl = el('span', { className: 'platform-empty-coverage', text: coverage || '' });
+  const emptyIcon = platformIcon(id);
+  if (emptyIcon) row.appendChild(emptyIcon);
   row.appendChild(nameEl);
   row.appendChild(statusEl);
   row.appendChild(coverageEl);
