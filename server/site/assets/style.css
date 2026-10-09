@@ -450,3 +450,10 @@ pre code { background: none; padding: 0; color: inherit; font-size: .85rem; }
 @media (max-width: 400px) {
   .labels div { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* Brand logos replace the yellow marker; the marker stays for tags without a logo. */
+.has-logo::before { display: none; }
+.px .ico-p, .tags .ico-p, .ids .ico-p { margin-right: 0; }
+.px .ico-p { width: 16px; height: 16px; vertical-align: baseline; }
+.tags .ico-p, .ids .ico-p { vertical-align: baseline; }
+.panel-tags .ico-p { vertical-align: -2px; }
