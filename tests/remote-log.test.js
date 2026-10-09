@@ -6,7 +6,7 @@ import {
   isShipped,
   worthSending,
   chunkEntries,
-  getInstallId,
+  forgetInstallId,
   ENDPOINT,
   INGEST_KEY,
   MAX_BATCH,
@@ -32,7 +32,6 @@ function make(overrides = {}) {
   const rl = createRemoteLog({
     fetch: fakeFetch(),
     getConsent: () => true,
-    getInstallId: () => 'install-1',
     version: '9.9.9',
     log: (level, src, msg) => logged.push({ level, src, msg }),
     ...overrides,
@@ -75,7 +74,7 @@ test('remote log: scan batch payload, headers and selection', async () => {
   assert.equal(init.headers['Content-Type'], 'application/json');
   assert.equal(init.headers['X-Superpixel-Key'], INGEST_KEY);
   assert.deepEqual(Object.keys(body).sort(), ['entries', 'install', 'scan', 'version']);
-  assert.equal(body.install, 'install-1');
+  assert.equal(body.install, id); // the per-scan random id, never a persistent install id
   assert.equal(body.version, '9.9.9');
   assert.deepEqual(body.scan, { id, domain: 'example.com' });
   assert.deepEqual(
@@ -162,7 +161,6 @@ test('remote log: the failure line is not shipped again (no loop)', async () => 
       throw new Error('offline');
     },
     getConsent: () => true,
-    getInstallId: () => 'install-1',
     log,
     idleDelayMs: 10,
   });
@@ -209,10 +207,40 @@ test('remote log: outside a scan only warn/error are buffered and sent debounced
   assert.equal(fetch.calls.length, 1);
 });
 
-test('remote log: install id is a stable uuid; consent defaults to never asked', async () => {
-  const a = await getInstallId();
-  const b = await getInstallId();
-  assert.equal(a, b);
-  assert.match(a, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+test('remote log: no persistent install id, every scan and idle batch gets a fresh random one', async () => {
+  const fetch = fakeFetch();
+  const { rl } = make({ fetch, idleDelayMs: 10 });
+  await rl.refreshConsent();
+  const ids = [];
+  for (const domain of ['a.com', 'b.com']) {
+    ids.push(rl.scanStart(domain));
+    rl.handle(entry('warn', 'bing', 'HTTP 429'));
+    assert.equal(await rl.scanEnd(), true);
+  }
+  rl.handle(entry('error', 'sw', 'idle one'));
+  await sleep(40);
+  rl.handle(entry('error', 'sw', 'idle two'));
+  await sleep(40);
+  const installs = fetch.calls.map((c) => c.body.install);
+  assert.equal(installs.length, 4);
+  assert.deepEqual(installs.slice(0, 2), ids);
+  for (const v of installs) assert.ok(typeof v === 'string' && v.length > 0);
+  assert.equal(new Set(installs).size, 4);
   assert.equal(DEFAULT_SETTINGS.remoteLog, null);
+});
+
+test('remote log: the install id stored by older builds is deleted', async () => {
+  const removed = [];
+  globalThis.chrome = { storage: { local: { remove: async (k) => removed.push(k) } } };
+  try {
+    await forgetInstallId();
+    assert.deepEqual(removed, ['installId']);
+    globalThis.chrome.storage.local.remove = async () => {
+      throw new Error('storage down');
+    };
+    await forgetInstallId(); // never throws
+  } finally {
+    delete globalThis.chrome;
+  }
+  await forgetInstallId(); // no chrome at all: a no-op
 });

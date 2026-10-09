@@ -1,7 +1,9 @@
 // Remote debug log (opt-in): ships scan warnings, errors and every platform's final status to
 // superpixel.run so broken scrapers can be fixed quickly. Only runs when settings.remoteLog is
-// true. Sends nothing beyond the contract: install id, extension version, scan id + domain and
-// the selected log entries (which never carry query strings, see safeUrl in log.js).
+// true. Sends nothing beyond the contract: extension version, a random per-scan id + domain and
+// the selected log entries (which never carry query strings, see safeUrl in log.js). There is no
+// persistent install id: the `install` field the server requires carries the scan's own random
+// id (or a fresh random value per batch outside a scan), so batches cannot be linked to a user.
 // Node-safe: everything chrome-specific is optional or injected (tests use createRemoteLog).
 
 import { log, onEntry } from './log.js';
@@ -19,7 +21,8 @@ const ENTRY_BUDGET_BYTES = MAX_BODY_BYTES - 4096; // room for the envelope
 const MAX_MSG = 1000;
 const MAX_SCAN_ENTRIES = 5000;
 const MAX_IDLE_ENTRIES = 500;
-const INSTALL_KEY = 'installId';
+// Older builds kept a persistent random id under this key; it is deleted on every start.
+const LEGACY_INSTALL_KEY = 'installId';
 
 function hasStorage() {
   return typeof chrome !== 'undefined' && !!(chrome.storage && chrome.storage.local);
@@ -90,37 +93,17 @@ export function newScanId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function randomUuid() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.floor(Math.random() * 16);
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
-let installIdPromise = null;
-
 /**
- * Random install id, created once and persisted in chrome.storage.local ('installId').
- * Without chrome.storage it lives in memory for the process (tests).
- * @returns {Promise<string>}
+ * Delete the persistent install id older builds kept in chrome.storage.local. Never throws.
+ * @returns {Promise<void>}
  */
-export function getInstallId() {
-  if (installIdPromise) return installIdPromise;
-  installIdPromise = (async () => {
-    if (!hasStorage()) return randomUuid();
-    try {
-      const got = await chrome.storage.local.get(INSTALL_KEY);
-      const stored = got && got[INSTALL_KEY];
-      if (typeof stored === 'string' && stored) return stored;
-      const id = randomUuid();
-      await chrome.storage.local.set({ [INSTALL_KEY]: id });
-      return id;
-    } catch {
-      return randomUuid();
-    }
-  })();
-  return installIdPromise;
+export async function forgetInstallId() {
+  if (!hasStorage()) return;
+  try {
+    await chrome.storage.local.remove(LEGACY_INSTALL_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 function manifestVersion() {
@@ -145,7 +128,6 @@ function cleanEntry(e) {
  * @param {{
  *   fetch?: typeof fetch,
  *   getConsent?: () => Promise<boolean>|boolean,
- *   getInstallId?: () => Promise<string>|string,
  *   version?: string|(() => string),
  *   log?: (level:string, src:string, msg:string) => void,
  *   idleDelayMs?: number,
@@ -154,7 +136,6 @@ function cleanEntry(e) {
 export function createRemoteLog(deps = {}) {
   const fetchFn = deps.fetch || ((...a) => globalThis.fetch(...a));
   const getConsent = deps.getConsent || (() => false);
-  const installIdFn = deps.getInstallId || getInstallId;
   const versionOf = () => (typeof deps.version === 'function' ? deps.version() : deps.version || '0.0.0');
   const logFn = deps.log || (() => {});
   const idleDelayMs = Number.isFinite(deps.idleDelayMs) ? deps.idleDelayMs : IDLE_DELAY_MS;
@@ -213,7 +194,8 @@ export function createRemoteLog(deps = {}) {
   async function send(scanMeta, entries) {
     try {
       if (!entries.length || !(await consentNow())) return false;
-      const install = String(await installIdFn());
+      // Not an install id: the scan's own random id, or a fresh random value per idle batch.
+      const install = (scanMeta && scanMeta.id) || newScanId();
       const version = String(versionOf());
       for (const chunk of chunkEntries(entries)) {
         await post(JSON.stringify({ install, version, scan: scanMeta, entries: chunk }));
@@ -316,6 +298,7 @@ export function installRemoteLog() {
     installed = true;
     onEntry((e) => rl.handle(e));
     rl.refreshConsent();
+    forgetInstallId();
   }
   return rl;
 }

@@ -70,7 +70,8 @@ class TriageTest(unittest.TestCase):
         text = self.run_triage("--hours", "26")
 
         self.assertIn("superpixel triage: last 26h, 2026-10-04T10:00:00.000Z .. 2026-10-05T12:00:00.000Z", text)
-        self.assertIn("5 entries, 2 scans, 1 installs", text)
+        self.assertIn("5 entries, 2 scans\n", text)
+        self.assertNotIn("installs", text)
         self.assertNotIn("smoke", text)
         self.assertNotIn("old.com", text)
 
@@ -85,7 +86,7 @@ class TriageTest(unittest.TestCase):
         self.assertIn("snap: rate_limited 1", finish)
 
         scans = text.split("== entries by scan ==")[1]
-        self.assertIn("-- scan s1 domain aiagenthub.pl install inst-1 version 0.2.0 (4 entries)", scans)
+        self.assertIn("-- scan s1 domain aiagenthub.pl version 0.2.0 (4 entries)", scans)
         self.assertIn("-- scan s2 domain example.com", scans)
         self.assertLess(scans.index("HTTP 429"), scans.index("rate_limited"))
         self.assertIn(f"{at(2.7)} WARN [meta] Adapter finish: changed, 0 ads, 1 requests, 9293ms", scans)

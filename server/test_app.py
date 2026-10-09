@@ -1,4 +1,5 @@
 import http.client
+import io
 import json
 import os
 import shutil
@@ -6,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -94,6 +96,29 @@ class IngestAndReadTests(ServerTestCase):
         self.assertEqual(status, 204)
         self.assertEqual(resp.getheader("Access-Control-Allow-Origin"), "*")
         self.assertIn("X-Superpixel-Key", resp.getheader("Access-Control-Allow-Headers"))
+
+    def test_client_ip_and_query_never_logged_or_stored(self):
+        ip = "203.0.113.77"
+        buf = io.StringIO()
+        with mock.patch.object(sys, "stderr", buf):
+            self.assertEqual(self.post(payload(), ip=ip)[0], 204)
+            self.assertEqual(self.get_logs("?level=warn&domain=example.com")[0], 200)
+            self.request("GET", "/nope?x=1", headers={"X-Forwarded-For": ip})
+        logged = buf.getvalue()
+        self.assertIn("POST /v1/logs 204", logged)
+        self.assertIn("GET /v1/logs 200", logged)
+        self.assertIn("GET /nope 404", logged)
+        self.assertNotIn(ip, logged)
+        self.assertNotIn("127.0.0.1", logged)
+        self.assertNotIn("?", logged)
+        self.assertNotIn(READ_TOKEN, logged)
+        with self.server.app.store.lock:
+            rows = self.server.app.store.db.execute("SELECT * FROM entries").fetchall()
+        self.assertEqual(len(rows), 1)
+        for row in rows:
+            for value in tuple(row):
+                self.assertNotIn(ip, str(value))
+                self.assertNotIn("127.0.0.1", str(value))
 
     def test_ingest_then_read_with_truncation(self):
         entry = {"t": "2026-10-05T12:00:00.000Z", "level": "debug", "src": "s" * 50, "msg": "m" * 1500}
