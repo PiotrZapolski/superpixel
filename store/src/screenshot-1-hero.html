@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Superpixel store screenshot 1</title>
+<link rel="stylesheet" href="shots.css">
+<style>
+  .head { position: absolute; left: 0; right: 0; top: 34px; text-align: center; }
+  .head .brand-row { justify-content: center; font-size: 20px; margin-bottom: 14px; }
+  .head .brand-row img { width: 32px; height: 32px; border-radius: 8px; }
+  h1 { font-size: 52px; }
+
+  .browser {
+    position: absolute; left: 40px; top: 186px; width: 1200px; height: 640px;
+    background: #fff; border-radius: 14px 14px 0 0; overflow: hidden;
+    box-shadow: 0 30px 70px -20px rgba(26, 21, 48, 0.4), 0 0 0 1px rgba(26, 21, 48, 0.1);
+    display: flex; flex-direction: column;
+    font-family: "Inter", sans-serif;
+  }
+  .tabs { height: 38px; background: #e3e1ec; display: flex; align-items: flex-end; padding: 0 12px; gap: 8px; }
+  .dots { display: flex; gap: 7px; align-self: center; margin-right: 10px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; background: #c9c4dc; }
+  .tab { height: 30px; padding: 0 14px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3c3650; background: #fff; border-radius: 9px 9px 0 0; width: 220px; }
+  .tab .fav { width: 14px; height: 14px; border-radius: 4px; background: #166534; }
+  .toolbar { height: 42px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid #e4e1ee; }
+  .nav { color: #8a84a0; font-size: 15px; letter-spacing: 6px; }
+  .omni { flex: 1; height: 28px; border-radius: 14px; background: #f1f0f5; display: flex; align-items: center; padding: 0 14px; font-size: 13px; color: #3c3650; gap: 8px; }
+  .omni .lock { color: #8a84a0; }
+  .ext { width: 22px; height: 22px; border-radius: 6px; outline: 2px solid #4f46e5; outline-offset: 2px; }
+  .content { flex: 1; display: flex; min-height: 0; }
+
+  /* Fictional site being inspected. */
+  .site { flex: 1; min-width: 0; overflow: hidden; background: #fbfaf7; color: #1f2a1f; }
+  .site-nav { display: flex; align-items: center; gap: 22px; padding: 16px 28px; font-size: 13px; color: #44503f; }
+  .logo { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; color: #14532d; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+  .logo i { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 16px solid #15803d; }
+  .cart { background: #14532d; color: #fff; padding: 7px 14px; border-radius: 999px; font-weight: 600; }
+  .site-hero { margin: 0 28px; height: 250px; border-radius: 16px; position: relative; overflow: hidden; background: linear-gradient(180deg, #fcd9a8, #f9a8d4 65%, #c4b5fd); }
+  .site-hero svg { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; }
+  .site-hero .txt { position: absolute; left: 32px; top: 40px; color: #fff; text-shadow: 0 2px 12px rgba(30, 20, 50, 0.35); }
+  .site-hero h2 { margin: 0 0 10px; font-size: 38px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; font-family: "Inter", sans-serif; }
+  .site-hero p { margin: 0 0 16px; font-size: 15px; }
+  .site-hero .btn { display: inline-block; background: #facc15; color: #1f2a1f; padding: 9px 18px; border-radius: 999px; font-weight: 700; font-size: 14px; text-shadow: none; }
+  .products { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 18px 28px; }
+  .p { background: #fff; border: 1px solid #ebe7dd; border-radius: 12px; padding: 10px; font-size: 13px; }
+  .p .img { height: 92px; border-radius: 8px; margin-bottom: 8px; }
+  .p b { display: block; font-size: 13.5px; }
+  .p span { color: #6b7466; }
+
+  .panel { flex: none; width: 400px; border-left: 1px solid #e4e1ee; display: flex; flex-direction: column; }
+  .panel-head { height: 36px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #f1f0f5; border-bottom: 1px solid #e2e0ea; font-weight: 600; font-size: 13px; color: #3c3650; }
+  .panel-head img { width: 16px; height: 16px; }
+  .panel-head .sp { flex: 1; }
+  .panel-body { position: relative; flex: 1; overflow: hidden; }
+  .panel-body iframe { position: absolute; left: 0; top: 0; border: 0; width: 400px; height: 524px; }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="head">
+    <div class="brand-row"><img src="../../icons/icon128.png" alt="">Superpixel</div>
+    <h1>See the tags and ads <span class="grad">behind any website</span></h1>
+  </div>
+
+  <div class="browser">
+    <div class="tabs">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="tab"><span class="fav"></span>Acme Outdoor - Trail gear</div>
+    </div>
+    <div class="toolbar">
+      <span class="nav">&#8592; &#8594; &#8635;</span>
+      <div class="omni"><span class="lock">&#128274;</span>acme-outdoor.com</div>
+      <img class="ext" src="../../icons/icon32.png" alt="">
+    </div>
+    <div class="content">
+      <div class="site">
+        <div class="site-nav">
+          <span class="logo"><i></i>Acme Outdoor</span>
+          <span>Tents</span><span>Packs</span><span>Jackets</span><span>Sale</span>
+          <span class="cart">Cart (0)</span>
+        </div>
+        <div class="site-hero">
+          <svg viewBox="0 0 760 250" preserveAspectRatio="none" aria-hidden="true">
+            <circle cx="560" cy="90" r="34" fill="#fff7d6" opacity=".9"/>
+            <path d="M0 190 140 90l90 70 110-110 160 120 120-70 140 100v50H0z" fill="#7c3aed" opacity=".55"/>
+            <path d="M0 220 120 160l110 40 140-70 150 90 110-40 130 50v20H0z" fill="#3b0764" opacity=".75"/>
+          </svg>
+          <div class="txt">
+            <h2>Gear for the<br>long trail</h2>
+            <p>Lightweight tents, packs and jackets.</p>
+            <span class="btn">Shop the autumn sale</span>
+          </div>
+        </div>
+        <div class="products">
+          <div class="p"><div class="img" style="background:linear-gradient(135deg,#1e1b4b,#4c1d95)"></div><b>Ridge 2 tent</b><span>1.4 kg, 3-season</span></div>
+          <div class="p"><div class="img" style="background:linear-gradient(135deg,#14532d,#65a30d)"></div><b>Trail 30 pack</b><span>Waterproof roll-top</span></div>
+          <div class="p"><div class="img" style="background:linear-gradient(135deg,#b45309,#facc15)"></div><b>Storm jacket</b><span>3-layer shell</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><img src="../../icons/icon32.png" alt=""><span class="sp">Superpixel</span><span>&#10005;</span></div>
+        <div class="panel-body">
+          <iframe src="../../sidepanel/sidepanel.html?shot=hero"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Superpixel small promo tile</title>
+<link rel="stylesheet" href="shots.css">
+<style>
+  .tile {
+    position: relative; width: 440px; height: 280px; overflow: hidden; color: #fff;
+    background:
+      radial-gradient(300px 220px at 100% 0%, rgba(250, 204, 21, 0.22), transparent 70%),
+      linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a21caf 100%);
+    padding: 28px 30px;
+  }
+  .top { display: flex; align-items: center; gap: 14px; }
+  .top img { width: 64px; height: 64px; border-radius: 15px; box-shadow: 0 8px 20px rgba(20, 10, 40, 0.35); }
+  .name { font-weight: 850; font-size: 38px; letter-spacing: -0.03em; }
+  .tag { margin: 22px 0 0; font-weight: 750; font-size: 25px; line-height: 1.15; letter-spacing: -0.02em; max-width: 380px; }
+  .logos { position: absolute; left: 30px; bottom: 26px; display: flex; gap: 8px; }
+  .logos span { width: 32px; height: 32px; border-radius: 9px; background: #fff; display: grid; place-items: center; color: #111; }
+  .logos svg { width: 18px; height: 18px; }
+</style>
+</head>
+<body>
+<div class="tile">
+  <div class="top"><img src="../../icons/icon128.png" alt=""><span class="name">Superpixel</span></div>
+  <p class="tag">See the tags and ads<br>behind any website</p>
+  <div class="logos" id="logos"></div>
+</div>
+<script type="module">
+  import { platformIcon } from '../../sidepanel/platform-icons.js';
+  const box = document.getElementById('logos');
+  for (const id of ['google', 'meta', 'tiktok', 'linkedin', 'bing', 'snap', 'gtm', 'ga4']) {
+    const s = document.createElement('span');
+    s.appendChild(platformIcon(id));
+    box.appendChild(s);
+  }
+  window.__spReady = true;
+</script>
+</body>
+</html>
