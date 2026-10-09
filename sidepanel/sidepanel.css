@@ -364,6 +364,7 @@ code {
 
 .summary-strip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -377,6 +378,7 @@ code {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  flex: 1 1 200px;
   min-width: 0;
 }
 
@@ -409,6 +411,10 @@ code {
   padding: 2px 8px 2px 6px;
   font-size: 11px;
   font-weight: 600;
+}
+
+.cached-chip[hidden] {
+  display: none;
 }
 
 .cached-chip::before {
