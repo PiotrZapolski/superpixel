@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Superpixel marquee promo tile</title>
+<link rel="stylesheet" href="shots.css">
+<style>
+  .tile {
+    position: relative; width: 1400px; height: 560px; overflow: hidden; color: #fff;
+    background:
+      radial-gradient(520px 360px at 78% 10%, rgba(250, 204, 21, 0.2), transparent 70%),
+      linear-gradient(120deg, #4f46e5 0%, #7c3aed 50%, #a21caf 100%);
+  }
+  .copy { position: absolute; left: 90px; top: 0; bottom: 0; width: 700px; display: flex; flex-direction: column; justify-content: center; }
+  .top { display: flex; align-items: center; gap: 20px; }
+  .top img { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 12px 28px rgba(20, 10, 40, 0.35); }
+  .name { font-weight: 850; font-size: 60px; letter-spacing: -0.03em; }
+  h1 { margin: 34px 0 0; font-size: 58px; line-height: 1.04; color: #fff; }
+  h1 em { font-style: normal; color: #facc15; }
+  .logos { margin-top: 36px; display: flex; gap: 12px; }
+  .logos span { width: 46px; height: 46px; border-radius: 12px; background: #fff; display: grid; place-items: center; color: #111; }
+  .logos svg { width: 26px; height: 26px; }
+
+  .sidepanel { left: 880px; top: 56px; width: 440px; height: 560px; border-radius: 18px 18px 0 0; box-shadow: 0 30px 70px rgba(20, 10, 40, 0.45); }
+</style>
+</head>
+<body>
+<div class="tile">
+  <div class="copy">
+    <div class="top"><img src="../../icons/icon128.png" alt=""><span class="name">Superpixel</span></div>
+    <h1>See the tags and ads <em>behind any website</em></h1>
+    <div class="logos" id="logos"></div>
+  </div>
+  <div class="sidepanel">
+    <div class="sidepanel-head"><img src="../../icons/icon32.png" alt=""><span class="sp">Superpixel</span><span class="x">&#10005;</span></div>
+    <div class="sidepanel-body">
+      <iframe src="../../sidepanel/sidepanel.html?shot=hero" style="width:400px; height:473px; transform:scale(1.1);"></iframe>
+    </div>
+  </div>
+</div>
+<script type="module">
+  import { platformIcon } from '../../sidepanel/platform-icons.js';
+  const box = document.getElementById('logos');
+  for (const id of ['google', 'meta', 'tiktok', 'linkedin', 'bing', 'snap', 'gtm', 'ga4']) {
+    const s = document.createElement('span');
+    s.appendChild(platformIcon(id));
+    box.appendChild(s);
+  }
+</script>
+</body>
+</html>

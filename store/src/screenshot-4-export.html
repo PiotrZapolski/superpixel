@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Superpixel store screenshot 4</title>
+<link rel="stylesheet" href="shots.css">
+<script src="demo-data.js"></script>
+<style>
+  .copy { position: absolute; left: 76px; top: 64px; width: 560px; display: flex; flex-direction: column; gap: 24px; }
+  h1 { font-size: 60px; }
+  .file {
+    position: absolute; left: 76px; top: 452px; width: 580px; height: 300px;
+    background: #1a1530; color: #e6e3f3; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 30px 60px -20px rgba(26, 21, 48, 0.45);
+  }
+  .file-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #241d3f; font: 600 14px "Inter", sans-serif; color: #c9c4dc; }
+  .file-head .dl { margin-left: auto; color: #facc15; }
+  .file-head svg { width: 16px; height: 16px; }
+  pre { margin: 0; padding: 14px 18px; font: 13.5px/1.5 ui-monospace, "DejaVu Sans Mono", monospace; white-space: pre; }
+  .k { color: #a5b4fc; } .s { color: #fde68a; } .n { color: #86efac; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(transparent, #1a1530); }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="copy">
+    <div class="brand-row"><img src="../../icons/icon128.png" alt="">Superpixel</div>
+    <h1>Export a <span class="grad">shareable report</span></h1>
+    <p class="lede">Download the whole scan as one JSON file: every tag, advertiser and ad, ready to share with your team or feed into your own tools.</p>
+  </div>
+
+  <div class="file">
+    <div class="file-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>
+      <span id="fname"></span><span class="dl">Downloaded</span>
+    </div>
+    <pre id="json"></pre>
+    <div class="fade"></div>
+  </div>
+
+  <div class="sidepanel" style="left:716px; top:40px; width:480px; height:720px;">
+    <div class="sidepanel-head"><img src="../../icons/icon32.png" alt=""><span class="sp">Superpixel</span><span class="x">&#10005;</span></div>
+    <div class="sidepanel-body">
+      <iframe src="../../sidepanel/sidepanel.html?shot=export" style="width:400px; height:567px; transform:scale(1.2);"></iframe>
+    </div>
+  </div>
+</div>
+<script>
+  // The exported file is JSON.stringify(lastData, null, 2) (sidepanel.js); show its first lines.
+  const scan = window.SUPERPIXEL_DEMO.scan;
+  document.getElementById('fname').textContent = 'superpixel-' + scan.domain + '-20261009.json';
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const text = JSON.stringify(scan, null, 2).split('\n').slice(0, 16).join('\n');
+  document.getElementById('json').innerHTML = esc(text)
+    .replace(/("[^"]*")(\s*:)/g, '<span class="k">$1</span>$2')
+    .replace(/(:\s*|^\s*)("[^"]*")/gm, '$1<span class="s">$2</span>')
+    .replace(/(: )(\d+|true|false|null)(,?)$/gm, '$1<span class="n">$2</span>$3');
+</script>
+</body>
+</html>
