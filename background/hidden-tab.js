@@ -8,6 +8,12 @@ const POLL_MS = 250;
 // Chrome can swap a tab for another one (prerender, process swap); the old id may be reported as
 // removed just before onReplaced arrives. Wait this long before treating a removal as a close.
 const REPLACE_GRACE_MS = 500;
+// content/hook-main.js posts this url instead of letting the page close its own tab.
+export const WINDOW_CLOSE_URL = 'superpixel:window-close';
+// Extension page a capture tab starts on, so its session history has 2 entries once it navigates
+// to the target: Chrome then ignores a script's window.close() (issue #17).
+const BLANK_PATH = 'blank.html';
+const BLANK_WAIT_MS = 2000;
 
 let scanWindowId = null;
 let anchorTabId = null;
@@ -19,7 +25,7 @@ const captureTabs = new Set();
  * tabId -> session. The diagnostics fields come from chrome.tabs events:
  * {payloads:[], lastAt:number, closed:boolean, tabId:number|null, lastUrl:string, lastStatus:string,
  *  discarded:boolean, replaced:number, removeInfo:{windowClosing:boolean, scanWindow:boolean}|null,
- *  closeTimer:any}
+ *  closeTimer:any, windowCloses:number}
  */
 const sessions = new Map();
 /** Capture tab ids removed a moment ago (onReplaced may still follow the removal). */
@@ -29,7 +35,49 @@ function newSession() {
   return {
     payloads: [], lastAt: 0, closed: false, tabId: null,
     lastUrl: '', lastStatus: '', discarded: false, replaced: 0, removeInfo: null, closeTimer: null,
+    windowCloses: 0,
   };
+}
+
+/** chrome-extension://<id>/blank.html, or '' outside the extension (tests). */
+function blankUrl() {
+  try {
+    return typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL ? chrome.runtime.getURL(BLANK_PATH) : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * True for a url a capture tab is really loading: not empty, not about:blank, not our blank page.
+ * @param {string} u
+ * @param {string} [blank]
+ */
+export function isRealTabUrl(u, blank = blankUrl()) {
+  if (!u || u === 'about:blank') return false;
+  if (blank && u.split(/[?#]/)[0] === blank) return false;
+  return true;
+}
+
+/**
+ * Up to 3 distinct script urls from a stack trace, without query strings and without our own
+ * extension frames (the window.close wrapper itself).
+ * @param {string} stack
+ * @returns {string}
+ */
+export function stackFrameUrls(stack) {
+  const out = [];
+  const re = /\b((?:https?|blob|chrome-extension):\/\/[^\s()]+)/g;
+  let m;
+  while ((m = re.exec(String(stack || ''))) && out.length < 3) {
+    const raw = m[1];
+    if (raw.startsWith('chrome-extension://')) continue;
+    const pos = raw.match(/(:\d+:\d+)$/);
+    const base = (pos ? raw.slice(0, -pos[1].length) : raw).split(/[?#]/)[0];
+    const u = base + (pos ? pos[1] : '');
+    if (!out.includes(u)) out.push(u);
+  }
+  return out.join(' < ');
 }
 
 // One capture tab at a time (meta and tiktok share it).
@@ -113,6 +161,7 @@ function closeDetail(s) {
     parts.push('no remove event');
   }
   if (s.discarded) parts.push('discarded');
+  if (s.windowCloses) parts.push(`window.close() blocked ${s.windowCloses}x`);
   if (s.replaced) parts.push(`replaced ${s.replaced}x`);
   return parts.join(', ');
 }
@@ -161,13 +210,31 @@ async function ensureScanWindow(showScanTabs) {
   }
 }
 
+/** Wait (bounded) until the tab committed our blank page, so the next navigation adds an entry. */
+async function waitForBlank(tabId, blank) {
+  const end = Date.now() + BLANK_WAIT_MS;
+  while (Date.now() < end) {
+    try {
+      const t = await chrome.tabs.get(tabId);
+      if (t.url === blank && t.status === 'complete') return;
+    } catch {
+      return;
+    }
+    await delay(25);
+  }
+}
+
 async function createTab(url, { showScanTabs = false, beforeNavigate } = {}) {
   const windowId = await ensureScanWindow(showScanTabs);
   // Create blank first and register the tab id BEFORE navigating, so the relay's isCaptureTab
-  // question (sent at document_start) is always answered with true.
-  const tab = await chrome.tabs.create({ windowId, url: 'about:blank', active: true });
+  // question (sent at document_start) is always answered with true. The blank page is our own
+  // extension page (not about:blank, whose entry the next navigation replaces): with 2 history
+  // entries the target page can no longer close the tab with window.close().
+  const blank = blankUrl();
+  const tab = await chrome.tabs.create({ windowId, url: blank || 'about:blank', active: true });
   captureTabs.add(tab.id);
   if (beforeNavigate) beforeNavigate(tab.id);
+  if (blank) await waitForBlank(tab.id, blank);
   await chrome.tabs.update(tab.id, { url });
   return tab.id;
 }
@@ -209,7 +276,8 @@ export function waitForComplete(tabId, timeoutMs = LOAD_TIMEOUT_MS) {
       }
       resolve(v);
     };
-    const isReal = (u) => !!u && u !== 'about:blank';
+    const blank = blankUrl();
+    const isReal = (u) => isRealTabUrl(u, blank);
     const onUpdated = (id, info, tab) => {
       if (id !== tabId) return;
       if (info.status === 'complete' && isReal(tab && tab.url)) finish(true);
@@ -495,6 +563,16 @@ export function handleRuntimeMessage(msg, sender) {
   if (msg.type === 'capture') {
     const s = tabId !== undefined ? sessions.get(tabId) : undefined;
     if (!s || !captureTabs.has(tabId)) return { ok: false };
+    if (msg.url === WINDOW_CLOSE_URL) {
+      // Diagnostics only: never a payload, never counts as network activity.
+      s.windowCloses += 1;
+      if (s.windowCloses === 1) {
+        const where = s.lastUrl || (sender.tab && sender.tab.url) || '';
+        const frames = stackFrameUrls(typeof msg.body === 'string' ? msg.body : '');
+        logWarn('capture', `Page called window.close() on ${safeUrl(where)}: ${frames || 'no stack frames'}`);
+      }
+      return { ok: true };
+    }
     if (s.payloads.length < MAX_PAYLOADS_PER_TAB) {
       s.payloads.push({
         url: typeof msg.url === 'string' ? msg.url : '',

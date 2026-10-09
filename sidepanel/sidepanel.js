@@ -306,6 +306,8 @@ function onPlatformResult(result) {
   if (idx >= 0) currentScan.results[idx] = result;
   else currentScan.results.push(result);
   renderPlatformResult(result);
+  // Keep the strip in step with the cards while the scan runs (it may still show a stored scan).
+  updateSummaryStrip(currentScan, false, true);
 }
 
 function formatSummary(summary) {
@@ -335,6 +337,7 @@ function onDone(summary) {
 function onError(message) {
   scanning = false;
   updateScanUi();
+  if (currentScan && !summaryStripEl.hidden) updateSummaryStrip(currentScan, false);
   showError(message || 'An error occurred.');
 }
 
@@ -360,7 +363,7 @@ function afterDataReady(cached) {
   exportJsonBtn.disabled = false;
 }
 
-function updateSummaryStrip(data, cached) {
+function updateSummaryStrip(data, cached, live) {
   if (!data) {
     summaryStripEl.hidden = true;
     return;
@@ -382,9 +385,9 @@ function updateSummaryStrip(data, cached) {
   } catch {
     when = data.at || '';
   }
-  summaryTimeEl.textContent = when ? 'Scanned ' + when : '';
+  summaryTimeEl.textContent = live ? 'Scan in progress' : when ? 'Scanned ' + when : '';
   cachedChipEl.hidden = !cached;
-  rescanBtn.hidden = false;
+  rescanBtn.hidden = !!live;
   summaryStripEl.hidden = false;
 }
 

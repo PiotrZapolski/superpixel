@@ -3,7 +3,7 @@
 // seeds.advertiserNames, then the name-based platforms (tiktok, linkedin, bing, snap) in parallel.
 import { normalizeDomain, hostOf, registrableDomain } from '../lib/domain.js';
 import { sleep, withTimeout } from '../lib/util.js';
-import { makeResult, makeAd, dedupeAds, assignRoles, advertiserNameSeeds } from '../lib/model.js';
+import { makeResult, makeAd, dedupeAds, assignRoles, advertiserNameSeeds, shouldSaveLastScan } from '../lib/model.js';
 import { stripTags } from '../lib/html.js';
 import { detectTags, extractSeeds, containerIds, gtagLoaderIds, detectTagsInContainer, mergeTags } from '../detect/detect.js';
 import { GTAG_PLATFORMS } from '../detect/signatures.js';
@@ -478,13 +478,17 @@ export async function runScan({ input, force } = {}, emit, signal) {
 
     const stopped = !!(signal && signal.aborted);
     const summary = summarize(domain, tags, results, t0, stopped);
-    try {
-      await chrome.storage.local.set({
-        lastScan: { domain, at: new Date().toISOString(), tags, seeds: publicSeeds(seeds), results, manual },
-      });
-    } catch (e) {
-      // quota errors are not fatal
-      logWarn('scan', `Saving lastScan failed: ${errText(e)}`);
+    if (shouldSaveLastScan(stopped, results)) {
+      try {
+        await chrome.storage.local.set({
+          lastScan: { domain, at: new Date().toISOString(), tags, seeds: publicSeeds(seeds), results, manual },
+        });
+      } catch (e) {
+        // quota errors are not fatal
+        logWarn('scan', `Saving lastScan failed: ${errText(e)}`);
+      }
+    } else {
+      logInfo('scan', `Stopped scan of ${domain} found nothing: previous lastScan kept`);
     }
     logInfo('scan', `Scan end ${domain}: ${summary.totalAds} ads (${summary.confirmedAds} confirmed), ${summary.ms}ms${stopped ? ', stopped' : ''}`);
     say({ type: 'done', summary });

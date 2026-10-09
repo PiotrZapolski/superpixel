@@ -7,9 +7,22 @@
   var MAX_HREFS = 2000;
   var MAX_BUFFER = 100;
 
+  var WINDOW_CLOSE_URL = 'superpixel:window-close';
+
   var confirmed = null; // null = unknown, true / false after the SW answers
   var buffer = [];
   var ssrSeen = new Set();
+  var closeRequested = false;
+
+  // The page called window.close(), which hook-main.js blocks. Outside capture tabs close the tab
+  // as the page wanted: this isolated world's window.close is the untouched native one.
+  function closeNatively() {
+    try {
+      window.close();
+    } catch (e) {
+      // ignore
+    }
+  }
 
   function send(msg) {
     try {
@@ -73,6 +86,10 @@
       if (event.source !== window) return;
       var d = event.data;
       if (!d || d.__superpixel !== true) return;
+      if (d.url === WINDOW_CLOSE_URL) {
+        if (confirmed === false) closeNatively();
+        else if (confirmed === null) closeRequested = true;
+      }
       if (confirmed === false) return;
       if (confirmed === null) {
         if (buffer.length < MAX_BUFFER) buffer.push(d);
@@ -89,7 +106,10 @@
     confirmed = !!isCapture;
     var pending = buffer;
     buffer = [];
-    if (!confirmed) return;
+    if (!confirmed) {
+      if (closeRequested) closeNatively();
+      return;
+    }
     for (var i = 0; i < pending.length; i++) forwardCapture(pending[i]);
     scheduleSsr();
     try {
