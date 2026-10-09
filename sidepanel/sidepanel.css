@@ -1194,3 +1194,8 @@ main {
   height: 16px;
   display: block;
 }
+
+.platform-icon.tag-icon {
+  width: 14px;
+  height: 14px;
+}

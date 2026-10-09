@@ -10,7 +10,7 @@ import {
   placementsText,
   headerDeepLinks,
 } from './view.js';
-import { platformIcon } from './platform-icons.js';
+import { platformIcon, tagIcon } from './platform-icons.js';
 
 const PLATFORM_ORDER = ['google', 'meta', 'tiktok', 'linkedin', 'bing', 'snap'];
 
@@ -440,6 +440,8 @@ function renderTags(tags, seeds) {
 function renderTagRow(hit) {
   const row = el('div', { className: 'tag-row' });
   const head = el('div', { className: 'tag-row-head' });
+  const logo = tagIcon(hit.platform);
+  if (logo) head.appendChild(logo);
   head.appendChild(el('span', { text: hit.platform }));
   if (hit.source === 'container') {
     head.appendChild(el('span', { className: 'tag-source', text: 'from GTM container' }));
