@@ -1172,3 +1172,10 @@ main {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
+
+.platform-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: block;
+}
