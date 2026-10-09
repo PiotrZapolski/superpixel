@@ -212,12 +212,59 @@ CONTENT_TYPES = {
     ".woff2": "font/woff2",
     ".txt": "text/plain; charset=utf-8",
     ".xml": "application/xml",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".vtt": "text/vtt; charset=utf-8",
 }
 SHORT_CACHE_EXTS = {".html", ".txt", ".xml"}
-SITE_FILES = {"/": "index.html", "/pl/": "pl/index.html", "/robots.txt": "robots.txt", "/sitemap.xml": "sitemap.xml"}
-SITE_FILES.update({"/privacy/": "privacy/index.html", "/pl/privacy/": "pl/privacy/index.html"})
+SITE_FILES = {
+    "/": "index.html",
+    "/pl/": "pl/index.html",
+    "/privacy/": "privacy/index.html",
+    "/pl/privacy/": "pl/privacy/index.html",
+    "/video/": "video/index.html",
+    "/robots.txt": "robots.txt",
+    "/sitemap.xml": "sitemap.xml",
+}
 # Page paths without the trailing slash redirect to the canonical one.
-SITE_REDIRECTS = {"/pl": "/pl/", "/privacy": "/privacy/", "/pl/privacy": "/pl/privacy/"}
+SITE_REDIRECTS = {"/pl": "/pl/", "/privacy": "/privacy/", "/pl/privacy": "/pl/privacy/", "/video": "/video/"}
+CHUNK = 64 * 1024
+
+
+def parse_range(header, size):
+    """Parse a single "bytes=" Range header against a file of `size` bytes.
+
+    Returns (start, end) inclusive for a satisfiable range, None to ignore the
+    header and send the whole file (missing, malformed or multi-range, as RFC 9110
+    allows), or "unsatisfiable" when the range lies outside the file (416).
+    """
+    if not header:
+        return None
+    unit, _, spec = header.strip().partition("=")
+    if unit.strip().lower() != "bytes" or not spec or "," in spec:
+        return None
+    first, sep, last = spec.strip().partition("-")
+    if not sep:
+        return None
+    first, last = first.strip(), last.strip()
+    if (first and not first.isdigit()) or (last and not last.isdigit()):
+        return None
+    if not first:
+        if not last:
+            return None
+        suffix = int(last)
+        if suffix == 0 or size == 0:
+            return "unsatisfiable"
+        return max(0, size - suffix), size - 1
+    start = int(first)
+    if last and int(last) < start:
+        return None
+    if start >= size:
+        return "unsatisfiable"
+    end = int(last) if last else size - 1
+    return start, min(end, size - 1)
 
 
 def resolve_static(site_dir, raw_path):
@@ -305,7 +352,11 @@ class Handler(BaseHTTPRequestHandler):
         self.error(404, "not found")
 
     def serve_static(self, raw_path):
-        """Serve a site file (headers only for HEAD). Returns False if the path is not a static route."""
+        """Serve a site file (headers only for HEAD). Returns False if the path is not a static route.
+
+        Supports a single byte range (206 Partial Content), which Safari and iOS need
+        to play <video>; an out-of-bounds range gets 416.
+        """
         if raw_path in SITE_REDIRECTS:
             self.send(301, headers={"Location": SITE_REDIRECTS[raw_path]})
             return True
@@ -313,20 +364,46 @@ class Handler(BaseHTTPRequestHandler):
         if full is None:
             return False
         try:
-            with open(full, "rb") as f:
-                payload = f.read()
+            f = open(full, "rb")
         except OSError:
             return False
-        ext = os.path.splitext(full)[1].lower()
-        max_age = 300 if ext in SHORT_CACHE_EXTS else 86400
-        self.send_response(200)
-        self.send_header("Content-Type", CONTENT_TYPES.get(ext, "application/octet-stream"))
-        self.send_header("Cache-Control", f"public, max-age={max_age}")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        if self.command != "HEAD":
-            self.wfile.write(payload)
+        with f:
+            size = os.fstat(f.fileno()).st_size
+            ext = os.path.splitext(full)[1].lower()
+            max_age = 300 if ext in SHORT_CACHE_EXTS else 86400
+            rng = parse_range(self.headers.get("Range"), size)
+            if rng == "unsatisfiable":
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return True
+            start, end = rng if rng else (0, size - 1)
+            length = end - start + 1 if size else 0
+            self.send_response(206 if rng else 200)
+            self.send_header("Content-Type", CONTENT_TYPES.get(ext, "application/octet-stream"))
+            self.send_header("Cache-Control", f"public, max-age={max_age}")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Accept-Ranges", "bytes")
+            if rng:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            self.send_header("Content-Length", str(length))
+            self.end_headers()
+            if self.command == "HEAD" or not length:
+                return True
+            f.seek(start)
+            remaining = length
+            try:
+                while remaining > 0:
+                    chunk = f.read(min(CHUNK, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                # Players drop range requests all the time (seeking, preload); not an error.
+                self.close_connection = True
         return True
 
     def do_POST(self):
