@@ -82,6 +82,8 @@ const brandSignalsEl = document.getElementById('brand-signals');
 
 const onlyConfirmedToggle = document.getElementById('only-confirmed-toggle');
 const platformCardsEl = document.getElementById('platform-cards');
+const scanLoaderEl = document.getElementById('scan-loader');
+const scanLoaderTextEl = scanLoaderEl.querySelector('.scan-loader-text');
 const manualRowsEl = document.getElementById('manual-rows');
 
 // ---- small DOM helpers ----
@@ -188,6 +190,7 @@ function handleMessage(msg) {
       onProgress(msg.id, msg.text);
       break;
     case 'platform':
+      hideLoader();
       onPlatformResult(msg.result);
       break;
     case 'done':
@@ -213,6 +216,17 @@ function updateScanUi() {
   scanBtn.hidden = scanning;
   stopBtn.hidden = !scanning;
   currentTabBtn.disabled = scanning;
+  domainInput.disabled = scanning;
+  rescanBtn.disabled = scanning;
+}
+
+function showLoader(text) {
+  scanLoaderTextEl.textContent = text;
+  scanLoaderEl.hidden = false;
+}
+
+function hideLoader() {
+  scanLoaderEl.hidden = true;
 }
 
 function showError(text) {
@@ -244,6 +258,9 @@ function beginScan(input, force) {
   manualRowsEl.replaceChildren();
   updateTagsSummary([]);
   summaryStripEl.hidden = true;
+  scanning = true;
+  updateScanUi();
+  showLoader(input && input.mode === 'tab' ? 'Scanning the current tab...' : 'Scanning ' + currentScan.domain + '...');
   send({ type: 'scan', input, force: !!force });
 }
 
@@ -251,6 +268,7 @@ function onPhase(text) {
   scanning = true;
   updateScanUi();
   phaseTextEl.textContent = text || '';
+  if (!scanLoaderEl.hidden && text) scanLoaderTextEl.textContent = text;
 }
 
 function onTags(tags, seeds) {
@@ -275,6 +293,7 @@ function onManual(libraries) {
 }
 
 function onPlatformStart(id, label, coverage) {
+  hideLoader();
   const entry = getOrCreateEntry(id);
   if (entry.kind !== 'card') buildCardDom(entry, id);
   const { refs } = entry;
@@ -318,6 +337,7 @@ function formatSummary(summary) {
 }
 
 function onDone(summary) {
+  hideLoader();
   scanning = false;
   updateScanUi();
   phaseTextEl.textContent = formatSummary(summary);
@@ -335,6 +355,7 @@ function onDone(summary) {
 }
 
 function onError(message) {
+  hideLoader();
   scanning = false;
   updateScanUi();
   if (currentScan && !summaryStripEl.hidden) updateSummaryStrip(currentScan, false);
@@ -342,6 +363,7 @@ function onError(message) {
 }
 
 function onLast(data) {
+  hideLoader();
   if (!data) return;
   lastData = data;
   currentScan = null;
