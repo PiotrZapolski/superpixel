@@ -89,6 +89,7 @@ h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: .5em; }
 
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .ico-p { width: 20px; height: 20px; flex: none; vertical-align: -4px; margin-right: 8px; }
+.ico-p.sm { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; }
 .ico { width: 18px; height: 18px; flex: none; }
 
 /* Top bar */
