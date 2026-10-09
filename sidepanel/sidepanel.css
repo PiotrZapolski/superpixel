@@ -1,5 +1,5 @@
 :root {
-  --bg: #f6f5fa;
+  --bg: #e7e4f0;
   --surface: #ffffff;
   --surface-2: #ece9f5;
   --ink: #1b1523;
@@ -79,6 +79,21 @@ html, body {
   line-height: 1.45;
   min-width: 300px;
 }
+
+/* Brand strip on both panel edges so the panel never blends into a light page next to it. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--accent-1), var(--accent-2));
+  pointer-events: none;
+  z-index: 1000;
+}
+body::before { left: 0; }
+body::after { right: 0; }
 
 h2 {
   font-size: 13px;
