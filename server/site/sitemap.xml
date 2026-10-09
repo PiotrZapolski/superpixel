@@ -24,4 +24,7 @@
     <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/privacy/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/privacy/"/>
   </url>
+  <url>
+    <loc>https://superpixel.run/video/</loc>
+  </url>
 </urlset>

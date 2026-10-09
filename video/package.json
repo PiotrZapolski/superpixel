@@ -1,0 +1,22 @@
+{
+  "name": "superpixel-explainer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Superpixel 43 s explainer video (issue #28), built with Remotion. Render on the server only, see render.sh.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "stills": "sh render.sh stills",
+    "render": "sh render.sh video"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.529",
+    "@remotion/google-fonts": "4.0.529",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.529"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "typescript": "~5.9.2"
+  }
+}

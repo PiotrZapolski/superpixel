@@ -17,14 +17,17 @@ class SiteTestCase(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.site = os.path.join(self.tmp, "site")
         os.makedirs(os.path.join(self.site, "pl"))
-        os.makedirs(os.path.join(self.site, "assets"))
+        os.makedirs(os.path.join(self.site, "assets", "video"))
         os.makedirs(os.path.join(self.site, "privacy"))
         os.makedirs(os.path.join(self.site, "pl", "privacy"))
+        os.makedirs(os.path.join(self.site, "video"))
         files = {
             "index.html": '<html lang="en"><body>en</body></html>',
             "pl/index.html": '<html lang="pl"><body>pl</body></html>',
             "privacy/index.html": '<html lang="en"><body>privacy en</body></html>',
             "pl/privacy/index.html": '<html lang="pl"><body>privacy pl</body></html>',
+            "video/index.html": '<html lang="en"><body>video</body></html>',
+            "assets/video/captions.vtt": "WEBVTT\n",
             "assets/style.css": "body{}",
             "assets/.hidden": "hidden",
             "secret.txt": "secret",
@@ -32,6 +35,10 @@ class SiteTestCase(unittest.TestCase):
         for rel, content in files.items():
             with open(os.path.join(self.site, rel), "w") as f:
                 f.write(content)
+        self.clip = bytes(i % 251 for i in range(1000))
+        for rel in ("assets/video/clip.mp4", "assets/video/clip.webm", "assets/video/poster.jpg"):
+            with open(os.path.join(self.site, rel), "wb") as f:
+                f.write(self.clip)
         self.server = app.make_server(
             os.path.join(self.tmp, "logs.db"), "ingest", "read", port=0, host="127.0.0.1",
             site_dir=self.site,
@@ -46,9 +53,9 @@ class SiteTestCase(unittest.TestCase):
         self.server.app.store.close()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def request(self, method, path):
+    def request(self, method, path, headers=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
-        conn.request(method, path)
+        conn.request(method, path, headers=headers or {})
         resp = conn.getresponse()
         raw = resp.read()
         conn.close()
@@ -138,6 +145,93 @@ class SiteTestCase(unittest.TestCase):
         status, raw, _ = self.request("GET", "/healthz")
         self.assertEqual(status, 200)
         self.assertEqual(raw, b"ok")
+
+    def test_video_page(self):
+        status, raw, resp = self.request("GET", "/video/")
+        self.assertEqual(status, 200)
+        self.assertEqual(resp.getheader("Content-Type"), "text/html; charset=utf-8")
+        self.assertIn(b"video", raw)
+
+    def test_video_redirects(self):
+        status, _, resp = self.request("GET", "/video")
+        self.assertEqual(status, 301)
+        self.assertEqual(resp.getheader("Location"), "/video/")
+
+    def test_media_content_types(self):
+        for path, ctype in (
+            ("/assets/video/clip.mp4", "video/mp4"),
+            ("/assets/video/clip.webm", "video/webm"),
+            ("/assets/video/poster.jpg", "image/jpeg"),
+            ("/assets/video/captions.vtt", "text/vtt; charset=utf-8"),
+        ):
+            status, _, resp = self.request("GET", path)
+            self.assertEqual(status, 200, path)
+            self.assertEqual(resp.getheader("Content-Type"), ctype, path)
+
+    def test_full_video_advertises_ranges(self):
+        status, raw, resp = self.request("GET", "/assets/video/clip.mp4")
+        self.assertEqual(status, 200)
+        self.assertEqual(resp.getheader("Accept-Ranges"), "bytes")
+        self.assertEqual(resp.getheader("Content-Length"), "1000")
+        self.assertIsNone(resp.getheader("Content-Range"))
+        self.assertEqual(raw, self.clip)
+
+    def test_range_requests(self):
+        cases = {
+            "bytes=0-99": (0, 99),
+            "bytes=0-1": (0, 1),
+            "bytes=900-": (900, 999),
+            "bytes=-10": (990, 999),
+            "bytes=500-5000": (500, 999),
+            "bytes=999-999": (999, 999),
+        }
+        for header, (start, end) in cases.items():
+            status, raw, resp = self.request("GET", "/assets/video/clip.mp4", {"Range": header})
+            self.assertEqual(status, 206, header)
+            self.assertEqual(resp.getheader("Content-Range"), f"bytes {start}-{end}/1000", header)
+            self.assertEqual(resp.getheader("Content-Length"), str(end - start + 1), header)
+            self.assertEqual(resp.getheader("Content-Type"), "video/mp4", header)
+            self.assertEqual(raw, self.clip[start:end + 1], header)
+
+    def test_unsatisfiable_range_is_416(self):
+        for header in ("bytes=1000-", "bytes=5000-6000", "bytes=-0"):
+            status, raw, resp = self.request("GET", "/assets/video/clip.mp4", {"Range": header})
+            self.assertEqual(status, 416, header)
+            self.assertEqual(resp.getheader("Content-Range"), "bytes */1000", header)
+            self.assertEqual(raw, b"", header)
+
+    def test_ignored_ranges_send_whole_file(self):
+        for header in ("bytes=abc", "items=0-10", "bytes=0-10,20-30", "bytes=50-10", "bytes="):
+            status, raw, _ = self.request("GET", "/assets/video/clip.mp4", {"Range": header})
+            self.assertEqual(status, 200, header)
+            self.assertEqual(raw, self.clip, header)
+
+    def test_head_with_range(self):
+        status, raw, resp = self.request("HEAD", "/assets/video/clip.webm", {"Range": "bytes=0-9"})
+        self.assertEqual(status, 206)
+        self.assertEqual(resp.getheader("Content-Range"), "bytes 0-9/1000")
+        self.assertEqual(resp.getheader("Content-Length"), "10")
+        self.assertEqual(raw, b"")
+
+    def test_html_also_accepts_ranges(self):
+        status, raw, _ = self.request("GET", "/", {"Range": "bytes=0-5"})
+        self.assertEqual(status, 206)
+        self.assertEqual(raw, b"<html ")
+
+
+class ParseRangeTestCase(unittest.TestCase):
+    def test_parse_range(self):
+        self.assertIsNone(app.parse_range(None, 100))
+        self.assertIsNone(app.parse_range("", 100))
+        self.assertEqual(app.parse_range("bytes=0-0", 100), (0, 0))
+        self.assertEqual(app.parse_range("bytes=10-", 100), (10, 99))
+        self.assertEqual(app.parse_range("bytes=-200", 100), (0, 99))
+        self.assertEqual(app.parse_range(" bytes = 5 - 9 ", 100), (5, 9))
+        self.assertEqual(app.parse_range("bytes=100-", 100), "unsatisfiable")
+        self.assertEqual(app.parse_range("bytes=0-", 0), "unsatisfiable")
+        self.assertIsNone(app.parse_range("bytes=1-2,4-5", 100))
+        self.assertIsNone(app.parse_range("bytes=x-5", 100))
+        self.assertIsNone(app.parse_range("bytes=-", 100))
 
 
 if __name__ == "__main__":

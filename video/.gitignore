@@ -1,0 +1,5 @@
+node_modules/
+out/
+.npm/
+chrome-headless-shell
+public/soundtrack.mp3

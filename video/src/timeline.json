@@ -1,0 +1,15 @@
+{
+  "fps": 30,
+  "duration": 1290,
+  "beat": 12,
+  "scenes": [
+    {"id": "hook", "start": 0, "end": 120},
+    {"id": "promise", "start": 120, "end": 240},
+    {"id": "tags", "start": 240, "end": 456},
+    {"id": "ads", "start": 456, "end": 720},
+    {"id": "labels", "start": 720, "end": 876},
+    {"id": "export", "start": 876, "end": 996},
+    {"id": "privacy", "start": 996, "end": 1116},
+    {"id": "cta", "start": 1116, "end": 1290}
+  ]
+}
