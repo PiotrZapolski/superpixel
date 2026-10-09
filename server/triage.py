@@ -18,6 +18,8 @@ from datetime import datetime, timedelta, timezone
 
 DEFAULT_HOURS = 26
 DEFAULT_DB = os.environ.get("SUPERPIXEL_DB", "/data/logs.db")
+# The `install` field is no install id (the extension sends the scan id there, so nothing links
+# scans to a user); only the smoke test sends a fixed marker, which is left out of the digest.
 EXCLUDED_INSTALLS = ("claude-smoke",)
 MAX_DOMAINS = 5
 DIGITS_RE = re.compile(r"\d+")
@@ -91,11 +93,10 @@ def by_scan(entries):
 
 def render(entries, since, until, hours):
     lines = []
-    installs = {e["install"] for e in entries if e["install"]}
     scans = by_scan(entries)
     lines.append(
         f"superpixel triage: last {hours:g}h, {since} .. {until}, {len(entries)} entries,"
-        f" {len(scans)} scans, {len(installs)} installs"
+        f" {len(scans)} scans"
     )
     if not entries:
         lines.append("no entries")
@@ -125,7 +126,7 @@ def render(entries, since, until, hours):
         domains = sorted({e["domain"] for e in rows if e["domain"]})
         lines.append("")
         lines.append(
-            f"-- scan {scan_id} domain {', '.join(domains) or '-'} install {rows[0]['install'] or '-'}"
+            f"-- scan {scan_id} domain {', '.join(domains) or '-'}"
             f" version {rows[0]['version'] or '-'} ({len(rows)} entries)"
         )
         for e in rows:

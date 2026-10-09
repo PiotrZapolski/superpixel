@@ -215,6 +215,9 @@ CONTENT_TYPES = {
 }
 SHORT_CACHE_EXTS = {".html", ".txt", ".xml"}
 SITE_FILES = {"/": "index.html", "/pl/": "pl/index.html", "/robots.txt": "robots.txt", "/sitemap.xml": "sitemap.xml"}
+SITE_FILES.update({"/privacy/": "privacy/index.html", "/pl/privacy/": "pl/privacy/index.html"})
+# Page paths without the trailing slash redirect to the canonical one.
+SITE_REDIRECTS = {"/pl": "/pl/", "/privacy": "/privacy/", "/pl/privacy": "/pl/privacy/"}
 
 
 def resolve_static(site_dir, raw_path):
@@ -270,9 +273,16 @@ class Handler(BaseHTTPRequestHandler):
     def error(self, status, message):
         self.send(status, {"error": message})
 
+    def log_request(self, code="-", size="-"):
+        # Method, path without query string and status only. No client IP, no query string and
+        # no headers (so no keys or tokens) are ever logged: the service keeps no personal data.
+        code = getattr(code, "value", code)
+        path = urlsplit(getattr(self, "path", "") or "").path or "-"
+        sys.stderr.write("%s %s %s\n" % (self.command or "-", path, code))
+
     def log_message(self, fmt, *args):
-        # Request line only; headers (and therefore keys) are never logged.
-        sys.stderr.write("%s %s\n" % (self.client_ip(), fmt % args))
+        # Server-side errors only (requests go through log_request). Never the client IP.
+        sys.stderr.write("%s\n" % (fmt % args))
 
     # -- routes ---------------------------------------------------------
 
@@ -296,8 +306,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def serve_static(self, raw_path):
         """Serve a site file (headers only for HEAD). Returns False if the path is not a static route."""
-        if raw_path == "/pl":
-            self.send(301, headers={"Location": "/pl/"})
+        if raw_path in SITE_REDIRECTS:
+            self.send(301, headers={"Location": SITE_REDIRECTS[raw_path]})
             return True
         full = resolve_static(self.server.app.site_dir, raw_path)
         if full is None:

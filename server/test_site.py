@@ -18,9 +18,13 @@ class SiteTestCase(unittest.TestCase):
         self.site = os.path.join(self.tmp, "site")
         os.makedirs(os.path.join(self.site, "pl"))
         os.makedirs(os.path.join(self.site, "assets"))
+        os.makedirs(os.path.join(self.site, "privacy"))
+        os.makedirs(os.path.join(self.site, "pl", "privacy"))
         files = {
             "index.html": '<html lang="en"><body>en</body></html>',
             "pl/index.html": '<html lang="pl"><body>pl</body></html>',
+            "privacy/index.html": '<html lang="en"><body>privacy en</body></html>',
+            "pl/privacy/index.html": '<html lang="pl"><body>privacy pl</body></html>',
             "assets/style.css": "body{}",
             "assets/.hidden": "hidden",
             "secret.txt": "secret",
@@ -61,6 +65,38 @@ class SiteTestCase(unittest.TestCase):
         status, raw, _ = self.request("GET", "/pl/")
         self.assertEqual(status, 200)
         self.assertIn(b'lang="pl"', raw)
+
+    def test_privacy_pages(self):
+        for path, body in (("/privacy/", b"privacy en"), ("/pl/privacy/", b"privacy pl")):
+            status, raw, resp = self.request("GET", path)
+            self.assertEqual(status, 200, path)
+            self.assertEqual(resp.getheader("Content-Type"), "text/html; charset=utf-8", path)
+            self.assertIn(body, raw, path)
+
+    def test_privacy_redirects(self):
+        for path, target in (("/privacy", "/privacy/"), ("/pl/privacy", "/pl/privacy/")):
+            status, _, resp = self.request("GET", path)
+            self.assertEqual(status, 301, path)
+            self.assertEqual(resp.getheader("Location"), target, path)
+
+    def test_real_site_has_privacy_pages_and_links(self):
+        site = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site")
+        for rel, lang in (("privacy/index.html", "en"), ("pl/privacy/index.html", "pl")):
+            with open(os.path.join(site, rel), encoding="utf-8") as f:
+                html = f.read()
+            self.assertIn(f'lang="{lang}"', html, rel)
+            self.assertIn('href="/privacy/"', html, rel)
+            self.assertIn('href="/pl/privacy/"', html, rel)
+            self.assertNotIn(" - ", html, rel)
+            self.assertNotIn("-", html, rel)
+        for rel, target in (("index.html", "/privacy/"), ("pl/index.html", "/pl/privacy/")):
+            with open(os.path.join(site, rel), encoding="utf-8") as f:
+                html = f.read()
+            self.assertIn(f'href="{target}"', html, rel)
+        with open(os.path.join(site, "sitemap.xml"), encoding="utf-8") as f:
+            sitemap = f.read()
+        self.assertIn("<loc>https://superpixel.run/privacy/</loc>", sitemap)
+        self.assertIn("<loc>https://superpixel.run/pl/privacy/</loc>", sitemap)
 
     def test_pl_redirects(self):
         status, _, resp = self.request("GET", "/pl")

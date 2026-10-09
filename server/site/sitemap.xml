@@ -12,4 +12,16 @@
     <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/"/>
   </url>
+  <url>
+    <loc>https://superpixel.run/privacy/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/privacy/"/>
+  </url>
+  <url>
+    <loc>https://superpixel.run/pl/privacy/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/privacy/"/>
+  </url>
 </urlset>

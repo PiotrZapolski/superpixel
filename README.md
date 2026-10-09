@@ -83,7 +83,9 @@ Everything runs locally in your browser. Scans are performed directly from your 
 the public ad library endpoints, and results are stored only in your browser's local extension
 storage. The optional SearchAPI key, if you add one, is stored locally in `chrome.storage.local`
 and is sent only to `searchapi.io` as a fallback request, never anywhere else. The only data that
-can reach a Superpixel server is the opt-in remote debug log below.
+can reach a Superpixel server is the opt-in remote debug log below. Superpixel processes no personal
+data: no account, no analytics, no persistent install id, and the server does not store or log IP
+addresses. Full policy: https://superpixel.run/privacy/
 
 ## Remote debug log
 
@@ -92,11 +94,13 @@ this), a banner asks "Help fix broken scans?". Nothing is sent unless you click 
 question is asked once.
 
 When enabled, after each scan the extension sends one batch to `https://superpixel.run/v1/logs`
-with: a random install id, the extension version, a scan id, the scanned domain, the warnings and
+with: the extension version, a random per-scan id, the scanned domain, the warnings and
 errors from the debug log and each platform's final status line (for example
 "Adapter finish: rate_limited, 0 ads"). Warnings outside a scan are sent in a batch about 30
 seconds later. Log lines never contain query strings. No settings, keys, ads or page content are
-sent. A failed send is dropped, not retried.
+sent. A failed send is dropped, not retried. There is no persistent install id: the `install` field
+the server requires carries the scan id (or a fresh random value for warnings outside a scan), and
+any id stored by older versions is deleted on start. Entries are deleted after 30 days.
 
 Turn it off anytime: Settings > Debug > uncheck "Send warnings to superpixel.run", then
 "Save settings".

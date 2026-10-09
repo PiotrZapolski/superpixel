@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polityka prywatności - Superpixel</title>
+<meta name="description" content="Superpixel nie zbiera danych osobowych. Co rozszerzenie trzyma na Twoim urządzeniu, z kim łączy się przeglądarka podczas skanu i jak działa opcjonalny log diagnostyczny.">
+<link rel="canonical" href="https://superpixel.run/pl/privacy/">
+<link rel="alternate" hreflang="en" href="https://superpixel.run/privacy/">
+<link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/privacy/">
+<link rel="alternate" hreflang="x-default" href="https://superpixel.run/privacy/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Superpixel">
+<meta property="og:locale" content="pl_PL">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:title" content="Polityka prywatności Superpixel">
+<meta property="og:description" content="Superpixel nie zbiera danych osobowych. Wszystko zostaje w Twojej przeglądarce.">
+<meta property="og:url" content="https://superpixel.run/pl/privacy/">
+<meta property="og:image" content="https://superpixel.run/assets/icon128.png">
+<meta name="twitter:card" content="summary">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/icon128.png" type="image/png" sizes="128x128">
+<link rel="apple-touch-icon" href="/assets/icon128.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap">
+<link rel="stylesheet" href="/assets/style.css?v=4">
+<style>
+.policy { padding: 48px 0 64px; }
+.policy .doc { max-width: 720px; }
+.policy h1 { font-size: clamp(2rem, 1.4rem + 2.6vw, 2.75rem); margin-bottom: .3em; }
+.policy .updated { color: var(--ink-soft); font-size: .95rem; margin-bottom: 28px; }
+.policy h2 { font-size: 1.45rem; font-weight: 800; margin: 2em 0 .55em; }
+.policy p, .policy li { color: var(--ink-soft); }
+.policy strong { color: var(--ink); }
+.policy ul { padding-left: 1.2em; margin: 0 0 1em; }
+.policy li { margin-bottom: .4em; }
+.policy .tldr { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--pixel); border-radius: var(--r); padding: 18px 20px; margin-bottom: 8px; }
+.policy .tldr p { color: var(--ink); margin: 0; font-size: 1.1rem; line-height: 1.5; }
+.policy .tldr p + p { margin-top: .6em; font-size: 1rem; color: var(--ink-soft); }
+.policy .tldr-h { font-weight: 800; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft) !important; margin-bottom: .5em !important; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Przejdź do treści</a>
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="/pl/" aria-label="Superpixel, strona główna">
+      <img src="/assets/icon128.png" width="32" height="32" alt="">
+      <span>Superpixel</span>
+    </a>
+    <nav class="nav" aria-label="Sekcje">
+      <a href="/pl/#layers">Co pokazuje</a>
+      <a href="/pl/#libraries">Biblioteki reklam</a>
+      <a href="/pl/#install">Instalacja</a>
+      <a href="/pl/privacy/" aria-current="page">Prywatność</a>
+    </nav>
+    <div class="top-end">
+      <a class="gh" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg><span class="gh-text">GitHub</span></a>
+      <nav class="lang" aria-label="Język">
+        <a href="/privacy/" hreflang="en" lang="en">EN</a>
+        <a href="/pl/privacy/" hreflang="pl" lang="pl" aria-current="page">PL</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="policy">
+  <div class="wrap">
+    <article class="doc">
+      <h1>Polityka prywatności</h1>
+      <p class="updated">Ostatnia aktualizacja: 9 października 2026</p>
+
+      <div class="tldr">
+        <p class="tldr-h">W skrócie</p>
+        <p>Superpixel nie zbiera danych osobowych. Rozszerzenie działa w Twojej przeglądarce i wszystko trzyma na Twoim urządzeniu.</p>
+        <p>Na nasz serwer może trafić tylko opcjonalny log diagnostyczny, i to wyłącznie wtedy, gdy się na to zgodzisz. Nie ma w nim konta, adresu IP ani żadnego identyfikatora, po którym dałoby się Cię rozpoznać, a po 30 dniach jest usuwany. Żadnej analityki, reklam ani śledzenia. Niczego nie sprzedajemy.</p>
+      </div>
+
+      <h2>Kto za tym stoi</h2>
+      <p>Superpixel (rozszerzenie do Chrome i stronę superpixel.run) prowadzi <strong>Piotr Zapolski Web Development</strong>. Kontakt: <a href="mailto:kontakt@agentshub.pl">kontakt@agentshub.pl</a> albo <a href="https://github.com/PiotrZapolski/superpixel/issues">GitHub Issues</a>.</p>
+      <p>Kod Superpixel jest otwarty, więc wszystko, co tu piszemy, możesz sprawdzić sam w <a href="https://github.com/PiotrZapolski/superpixel">repozytorium na GitHubie</a>.</p>
+
+      <h2>Co zostaje na Twoim urządzeniu</h2>
+      <p>Rozszerzenie działa lokalnie, w Twojej przeglądarce. Nie zakładasz konta i nigdzie się nie rejestrujesz. Poniższe rzeczy leżą wyłącznie w lokalnej pamięci rozszerzenia (<code>chrome.storage.local</code>) i nigdy do nas nie trafiają:</p>
+      <ul>
+        <li>Twoje ustawienia, w tym klucz SearchAPI.io, jeśli go dodasz,</li>
+        <li>wynik ostatniego skanu,</li>
+        <li>krótka pamięć podręczna wyników (domyślnie 24 godziny, zmienisz to w ustawieniach),</li>
+        <li>lokalny log diagnostyczny z ostatnimi 500 wpisami, który możesz podejrzeć, skopiować albo wyczyścić w ustawieniach.</li>
+      </ul>
+      <p>Odinstalowanie rozszerzenia usuwa to wszystko. W rozszerzeniu nie ma analityki, reklam ani śledzenia, a my nie sprzedajemy ani nie udostępniamy żadnych danych.</p>
+
+      <h2>Z kim łączy się Twoja przeglądarka podczas skanu</h2>
+      <p>Kiedy skanujesz stronę, to Twoja przeglądarka (a nie nasz serwer) łączy się z:</p>
+      <ul>
+        <li>skanowaną stroną, żeby sprawdzić, jakich tagów marketingowych używa,</li>
+        <li>publicznymi bibliotekami reklam: Google Ads Transparency Center, Meta Ad Library, TikTok Ad Library, LinkedIn Ad Library, Microsoft Ad Library i Snapchat Ads Gallery.</li>
+      </ul>
+      <p>Te zapytania wychodzą z Twojego adresu IP, a przy części bibliotek (na przykład Google i Meta) korzystają z sesji, na którą jesteś już zalogowany. Nie widzimy ani tych zapytań, ani ich wyników. Obowiązują je polityki prywatności tych serwisów. Jeśli klikniesz link do innej biblioteki reklam (na przykład X, Pinterest albo Apple), obowiązuje polityka tamtej strony.</p>
+      <p><strong>SearchAPI.io (opcjonalnie).</strong> Jeśli dodasz własny klucz SearchAPI.io, a któraś biblioteka reklam nie odpowie poprawnie, rozszerzenie wyśle do SearchAPI.io skanowaną domenę albo nazwę marki razem z Twoim kluczem, żeby pobrać wyniki stamtąd. Obowiązuje wtedy polityka prywatności SearchAPI.io. Bez klucza nic tam nie trafia.</p>
+
+      <h2>Opcjonalny log diagnostyczny</h2>
+      <p>Skrypty, które czytają nieoficjalne endpointy bibliotek reklam, często się psują. Żeby szybko je naprawiać, rozszerzenie może wysyłać krótki log diagnostyczny na superpixel.run. <strong>Jest wyłączony, dopóki się nie zgodzisz</strong>: panel boczny pyta raz ("Help fix broken scans?") i nic nie wysyła, dopóki nie klikniesz "Send logs". Wyłączysz go w każdej chwili w ustawieniach, w sekcji Debug.</p>
+      <p>Jeśli się zgodzisz, po każdym skanie trafia do nas jedna paczka, a w niej tylko:</p>
+      <ul>
+        <li>wersja rozszerzenia,</li>
+        <li>losowy identyfikator tego jednego skanu (nie jest powiązany z Tobą ani z Twoim urządzeniem, a przy każdym skanie powstaje nowy),</li>
+        <li>skanowana domena,</li>
+        <li>ostrzeżenia i błędy z logu oraz końcowy status każdej platformy (na przykład "Adapter finish: rate_limited, 0 ads"). Te wpisy nigdy nie zawierają parametrów z adresów URL.</li>
+      </ul>
+      <p>Nigdy nie wysyłamy Twoich ustawień, kluczy API, reklam, treści stron, historii przeglądania ani niczego, co pozwala Cię zidentyfikować. Nie ma też identyfikatora instalacji: starsze wersje rozszerzenia go miały, a teraz jest kasowany z przeglądarki przy starcie rozszerzenia.</p>
+      <p><strong>Cel:</strong> wykrywanie i naprawianie zepsutych skryptów. <strong>Jak długo:</strong> wpisy przechowujemy 30 dni, potem usuwają się automatycznie. <strong>Podstawa prawna:</strong> log jest tak zaprojektowany, żeby nie zawierał danych osobowych. Jeśli jednak RODO miałoby mieć do niego zastosowanie, podstawą jest Twoja zgoda (art. 6 ust. 1 lit. a RODO), którą możesz w każdej chwili wycofać, wyłączając log. Wycofanie zgody nie wpływa na to, co zostało wysłane wcześniej.</p>
+
+      <h2>Strona superpixel.run</h2>
+      <p>superpixel.run (ta strona i endpoint logu diagnostycznego) działa na serwerach <strong>Hetzner Online GmbH</strong> w centrach danych w UE (Niemcy i Finlandia).</p>
+      <ul>
+        <li>Bez ciasteczek, bez analityki, bez śledzenia. Jedyny skrypt na stronie to nasz własny, mały skrypt do przycisku "Kopiuj".</li>
+        <li>Nasz serwer nie zapisuje ani nie loguje adresów IP. Żeby blokować nadużycia endpointu logu, przez minutę liczy w pamięci zapytania z danego adresu IP; ta informacja nigdy nie trafia na dysk ani do logów.</li>
+        <li>Czcionka (Schibsted Grotesk) ładuje się z Google Fonts. Po wejściu na stronę Twoja przeglądarka pobiera ją z fonts.googleapis.com i fonts.gstatic.com, więc Google dostaje przy tym Twój adres IP. Obowiązuje <a href="https://policies.google.com/privacy?hl=pl">polityka prywatności Google</a>.</li>
+      </ul>
+
+      <h2>Twoje prawa</h2>
+      <p>Nie przechowujemy danych osobowych, więc nie mamy o Tobie niczego, co dałoby się udostępnić, poprawić, przenieść albo usunąć. Mimo to możesz zapytać nas o cokolwiek w sprawie swoich danych pod adresem <a href="mailto:kontakt@agentshub.pl">kontakt@agentshub.pl</a> albo w <a href="https://github.com/PiotrZapolski/superpixel/issues">GitHub Issues</a>. Masz też prawo złożyć skargę do Prezesa Urzędu Ochrony Danych Osobowych (UODO).</p>
+
+      <h2>Dzieci</h2>
+      <p>Superpixel to narzędzie dla marketerów i nie jest skierowany do dzieci.</p>
+
+      <h2>Zmiany</h2>
+      <p>Jeśli ta polityka się zmieni, nowa wersja pojawi się na tej stronie z nową datą ostatniej aktualizacji. Pełna historia zmian jest w <a href="https://github.com/PiotrZapolski/superpixel">repozytorium na GitHubie</a>.</p>
+    </article>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <p class="foot-brand"><img src="/assets/icon128.png" width="24" height="24" alt=""> Superpixel</p>
+    <p>Udostępniony na <a href="https://github.com/PiotrZapolski/superpixel/blob/main/LICENSE">licencji MIT</a>. Ta strona nie używa trackerów ani ciasteczek. <a href="/pl/privacy/">Polityka prywatności</a></p>
+    <nav class="lang" aria-label="Język">
+      <a href="/privacy/" hreflang="en" lang="en">English</a>
+      <a href="/pl/privacy/" hreflang="pl" lang="pl" aria-current="page">Polski</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

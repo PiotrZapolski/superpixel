@@ -24,7 +24,7 @@ Headers: `X-Superpixel-Key: <ingest key>`, `Content-Type: application/json`.
 
 ```json
 {
-  "install": "<uuid>",
+  "install": "<random, per scan>",
   "version": "0.1.0",
   "scan": {"id": "<string>", "domain": "example.com"},
   "entries": [
@@ -33,7 +33,9 @@ Headers: `X-Superpixel-Key: <ingest key>`, `Content-Type: application/json`.
 }
 ```
 
-`scan` may be `null`.
+`scan` may be `null`. `install` is required (non-empty) for compatibility, but it is not an install
+id: the extension sends the scan id there, or a fresh random value for a batch outside a scan, so
+nothing links batches to a user. Older builds sent a persistent random id; they delete it on start.
 
 - Body at most 256 KiB, checked from `Content-Length` before reading (413).
 - 1 to 500 entries (400 otherwise).
@@ -41,7 +43,7 @@ Headers: `X-Superpixel-Key: <ingest key>`, `Content-Type: application/json`.
   `scan.id` 64, `t` 40. A `level` other than info, warn or error is stored as info.
 - Missing or wrong key: 401. Bad JSON or shape: 400. Success: 204.
 - Rate limit: 30 POSTs per rolling minute per client IP (first hop of `X-Forwarded-For`, which
-  Caddy sets), in memory: 429.
+  Caddy sets), in memory only: 429. The IP is never written to SQLite or the logs.
 - `OPTIONS /v1/logs` answers 204 with `Access-Control-Allow-Origin: *`.
 
 ### `GET /v1/logs`
@@ -71,6 +73,10 @@ Returns the latest `limit` matching rows, ordered oldest to newest:
 
 Retention: on insert, at most every 10 minutes, rows older than 30 days are deleted and only the
 newest 200000 rows are kept.
+
+No personal data: the service stores no client IP. The access log on stderr (`docker logs`) has
+only the method, the path without query string and the status; never the IP, query strings or
+headers. Public privacy policy: `/privacy/` and `/pl/privacy/` (files in `site/`).
 
 ## Reading logs
 

@@ -67,7 +67,7 @@
       <a href="#layers">What it shows</a>
       <a href="#libraries">Ad libraries</a>
       <a href="#install">Install</a>
-      <a href="#privacy">Privacy</a>
+      <a href="/privacy/">Privacy</a>
     </nav>
     <div class="top-end">
       <a class="gh" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg><span class="gh-text">GitHub</span></a>
@@ -239,9 +239,8 @@
     <div class="privacy-grid">
       <div class="privacy-copy">
         <p class="big">Everything runs in your browser. Scans go straight from your machine to the public ad libraries, and results are stored only in your browser's local extension storage.</p>
-        <p>If you add a SearchAPI key, it stays in <code>chrome.storage.local</code> and is sent only to searchapi.io as a fallback request.</p>
-        <p>The only data that can ever reach a Superpixel server is the opt-in remote debug log. The first time the panel opens, it asks "Help fix broken scans?". Nothing is sent unless you click "Send logs".</p>
-        <p>If you say yes, each scan sends one batch to superpixel.run with a random install ID, the extension version, a scan ID, the scanned domain, the debug log's warnings and errors, and each platform's final status line. Never settings, keys, ads or page content. Turn it off anytime in Settings, Debug.</p>
+        <p>Superpixel collects no personal data. The only thing that can reach our server is an optional debug log (warnings and the scanned domain, no ID that identifies you), sent only if you say yes.</p>
+        <p><a href="/privacy/">Read the privacy policy</a></p>
       </div>
       <div class="flow" role="img" aria-label="Diagram: scans and results stay in your browser. Requests go to public ad libraries and, if you add a key, to searchapi.io. Only the opt-in debug log goes to superpixel.run.">
         <div class="flow-you" aria-hidden="true">
@@ -284,7 +283,7 @@
 <footer class="foot">
   <div class="wrap foot-inner">
     <p class="foot-brand"><img src="/assets/icon128.png" width="24" height="24" alt=""> Superpixel</p>
-    <p>Released under the <a href="https://github.com/PiotrZapolski/superpixel/blob/main/LICENSE">MIT license</a>. No trackers, no cookies on this site.</p>
+    <p>Released under the <a href="https://github.com/PiotrZapolski/superpixel/blob/main/LICENSE">MIT license</a>. No trackers, no cookies on this site. <a href="/privacy/">Privacy policy</a></p>
     <p class="foot-terms">Superpixel automates public ad transparency libraries inside your own browser, with your own session and IP address. That may be against the terms of the platforms involved, and they may rate limit or block accounts that use it. Use it responsibly and at your own risk.</p>
     <nav class="lang" aria-label="Language">
       <a href="/" hreflang="en" lang="en" aria-current="page">English</a>
