@@ -245,9 +245,11 @@ function buildCtx(adapter, settings, emit, signal, stats) {
     memory: storageMemory,
     // init.expectedFailure: the adapter handles a non-2xx answer of this request as a known
     // outage (Bing text search, issue #36), so it is logged as info, not as a warning.
+    // init.retryStatuses: statuses this attempt will retry (429, 5xx): logged as info; the last
+    // attempt omits them, so a request that finally gives up still warns once.
     fetch: async (url, init = {}) => {
       stats.requests++;
-      const { expectedFailure, ...rest } = init || {};
+      const { expectedFailure, retryStatuses, ...rest } = init || {};
       let res;
       try {
         res = await fetch(url, { credentials: 'include', ...rest, signal: rest.signal || fetchSignal(signal) });
@@ -256,7 +258,10 @@ function buildCtx(adapter, settings, emit, signal, stats) {
         throw e;
       }
       // Never log query strings: they can carry the SearchAPI key.
-      if (res) logHttpStatus(id, res.status, url, { expectedFailure: !!expectedFailure });
+      if (res) {
+        const retrying = Array.isArray(retryStatuses) && retryStatuses.includes(res.status);
+        logHttpStatus(id, res.status, url, { expectedFailure: !!expectedFailure, retrying });
+      }
       return res;
     },
     throttle: () => getThrottle(id, THROTTLE_MS[id] || 1000)(signal),

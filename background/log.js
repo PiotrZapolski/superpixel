@@ -122,15 +122,17 @@ export const logError = (src, msg) => log('error', src, msg);
 
 /**
  * Log a non-2xx answer of an adapter request (host + path only, never the query string).
+ * retrying: the adapter retries this status, so it is info; only the attempt it gives up on warns.
  * expectedFailure: the adapter handles this failure as a known outage (issue #36), so it is info,
  * not a warning. Returns the entry, or null for a 2xx answer.
  * @param {string} src
  * @param {number} status
  * @param {string} url
- * @param {{expectedFailure?:boolean}} [opts]
+ * @param {{expectedFailure?:boolean, retrying?:boolean}} [opts]
  */
-export function logHttpStatus(src, status, url, { expectedFailure = false } = {}) {
+export function logHttpStatus(src, status, url, { expectedFailure = false, retrying = false } = {}) {
   if (status >= 200 && status < 300) return null;
+  if (retrying) return log('info', src, `HTTP ${status} ${safeUrl(url)} (retrying)`);
   if (expectedFailure) return log('info', src, `HTTP ${status} ${safeUrl(url)} (expected, handled)`);
   return log('warn', src, `HTTP ${status} ${safeUrl(url)}`);
 }

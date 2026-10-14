@@ -16,6 +16,7 @@ import {
   ADS_TOP,
   TEXT_DOWN_KEY,
   TEXT_DOWN_MS,
+  MAX_429_RETRIES,
 } from '../adapters/bing.js';
 import { logHttpStatus, onEntry } from '../background/log.js';
 
@@ -619,6 +620,63 @@ test('logHttpStatus: an expected text search 500 is info, any other 5xx stays a 
     ['info', 'HTTP 500 adlibrary.api.bingads.microsoft.com/api/v1/Ads (expected, handled)'],
     ['warn', 'HTTP 500 adlibrary.api.bingads.microsoft.com/api/v1/Advertisers'],
   ]);
+});
+
+test('logHttpStatus: a retried status is info, the final give-up warns once', () => {
+  const seen = [];
+  const off = onEntry((e) => seen.push(e));
+  try {
+    logHttpStatus('bing', 429, 'https://adlibrary.api.bingads.microsoft.com/api/v1/Advertisers?searchText=x', { retrying: true });
+    logHttpStatus('bing', 429, 'https://adlibrary.api.bingads.microsoft.com/api/v1/Advertisers?searchText=x');
+  } finally {
+    off();
+  }
+  assert.deepEqual(seen.map((e) => [e.level, e.msg]), [
+    ['info', 'HTTP 429 adlibrary.api.bingads.microsoft.com/api/v1/Advertisers (retrying)'],
+    ['warn', 'HTTP 429 adlibrary.api.bingads.microsoft.com/api/v1/Advertisers'],
+  ]);
+});
+
+test('search() marks only attempts it will retry: a recovered 429 never reaches warn level', async () => {
+  const sent = [];
+  let advCalls = 0;
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url, init) {
+      sent.push({ url, retryStatuses: init.retryStatuses || [] });
+      if (url.includes('/Advertisers?')) {
+        advCalls += 1;
+        if (advCalls === 1) return fakeResponse('<html>Too Many Requests</html>', 429);
+        return fakeResponse({ value: [] });
+      }
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  // First advertiser attempt: 429 and 5xx would be retried.
+  assert.ok(sent[0].retryStatuses.includes(429));
+  assert.ok(sent[0].retryStatuses.includes(500));
+  // Text search: no 5xx retries, so only 429 is marked.
+  const text = sent.find((s) => s.url.includes('/Ads?searchText='));
+  assert.deepEqual(text.retryStatuses, [429]);
+});
+
+test('search() final 429 attempt is not marked as retrying, so it warns', async () => {
+  const sent = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url, init) {
+      sent.push(init.retryStatuses || []);
+      return fakeResponse('<html>Too Many Requests</html>', 429);
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(res.status, 'rate_limited');
+  assert.equal(sent.length, MAX_429_RETRIES + 1);
+  assert.ok(sent[MAX_429_RETRIES - 1].includes(429));
+  assert.ok(!sent[MAX_429_RETRIES].includes(429));
 });
 
 test('search() clears an expired breaker when the text search answers again', async () => {

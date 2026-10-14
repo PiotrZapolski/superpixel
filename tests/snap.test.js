@@ -173,7 +173,7 @@ test('search() honours Retry-After on 429, logs it, and recovers', async () => {
   assert.equal(res.status, 'empty');
   assert.equal(n, 2);
   assert.equal(logs.length, 1);
-  assert.equal(logs[0].level, 'warn');
+  assert.equal(logs[0].level, 'info');
   assert.match(logs[0].msg, /^429 attempt 1, retry-after 0, waiting 0ms, body: slow down x+$/);
   assert.equal(logs[0].msg.split('body: ')[1].length, 200);
 });
@@ -188,11 +188,15 @@ test('search() gives up after 4 retries with rate_limited, keeping the return sh
   const ctx = {
     settings: {},
     log: (level, msg) => logs.push({ level, msg }),
-    async fetch() { n += 1; return rateLimitResponse('0'); },
+    async fetch(url, init) { n += 1; retry.push(init.retryStatuses || null); return rateLimitResponse('0'); },
   };
+  const retry = [];
   const res = await search({ domain: 'x.com', brand: 'Acme' }, ctx);
   assert.equal(res.status, 'rate_limited');
   assert.equal(n, 5);
+  // Attempts 1-4 will be retried (info in the fetch wrapper); the 5th gives up and warns there.
+  assert.deepEqual(retry, [[429], [429], [429], [429], null]);
+  assert.ok(logs.every((l) => l.level === 'info'));
   assert.deepEqual(logs.map((l) => l.msg.split(', body')[0]), [
     '429 attempt 1, retry-after 0, waiting 0ms',
     '429 attempt 2, retry-after 0, waiting 0ms',

@@ -358,7 +358,8 @@ function retryDelay(attempt) {
 async function getHtml(ctx, url) {
   for (let attempt = 0; ; attempt += 1) {
     if (ctx.throttle) await ctx.throttle();
-    const res = await ctx.fetch(url, { credentials: 'omit' });
+    // A 429/999 that will be retried is logged as info; the final attempt warns once.
+    const res = await ctx.fetch(url, { credentials: 'omit', ...(attempt < 3 ? { retryStatuses: [429, 999] } : {}) });
     const finalUrl = String(res.url || url);
     if (/authwall|\/login|\/uas\/login|\/checkpoint/i.test(finalUrl)) return { authwall: true };
     if (res.status === 429 || res.status === 999) {

@@ -197,6 +197,11 @@ async function getJson(ctx, url, opts = {}) {
     let res;
     const init = { credentials: 'omit', headers: { Accept: 'application/json' } };
     if (opts.expectedFailure) init.expectedFailure = true;
+    // Statuses this attempt would retry: logged as info, only the final give-up warns.
+    const retryStatuses = [];
+    if (attempt < MAX_429_RETRIES) retryStatuses.push(429);
+    if (serverRetries < Math.min(maxServerRetries, SERVER_RETRY_DELAYS.length)) retryStatuses.push(...SERVER_ERROR_CODES);
+    if (retryStatuses.length) init.retryStatuses = retryStatuses;
     try {
       res = await ctx.fetch(url, init);
     } catch (err) {
