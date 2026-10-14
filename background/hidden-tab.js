@@ -2,8 +2,8 @@
 // Content scripts (content/hook-main.js + content/relay.js) forward network captures from these tabs.
 import { logInfo, logWarn, safeUrl, errText } from './log.js';
 
-const MAX_PAYLOADS_PER_TAB = 400;
-const LOAD_TIMEOUT_MS = 20000;
+export const MAX_PAYLOADS_PER_TAB = 400;
+export const LOAD_TIMEOUT_MS = 20000;
 const POLL_MS = 250;
 // Chrome can swap a tab for another one (prerender, process swap); the old id may be reported as
 // removed just before onReplaced arrives. Wait this long before treating a removal as a close.
@@ -80,9 +80,9 @@ export function stackFrameUrls(stack) {
   return out.join(' < ');
 }
 
-// One capture tab at a time (meta and tiktok share it).
+// One capture at a time (meta and tiktok tabs, and the offscreen frame of frame-capture.js).
 let mutexTail = Promise.resolve();
-function acquireMutex() {
+export function acquireMutex() {
   let release;
   const held = new Promise((r) => {
     release = r;
@@ -92,7 +92,7 @@ function acquireMutex() {
   return prev.then(() => release);
 }
 
-function delay(ms) {
+export function delay(ms) {
   return new Promise((r) => setTimeout(r, Math.max(0, ms)));
 }
 
@@ -392,7 +392,7 @@ async function sendScroll(tabId) {
 /**
  * Wait up to ms, returning early when stop() is true. Returns 'aborted' | 'closed' | 'stop' | 'time'.
  */
-async function waitLoop(ms, session, signal, stop) {
+export async function waitLoop(ms, session, signal, stop) {
   const end = Date.now() + Math.max(0, ms);
   for (;;) {
     if (signal && signal.aborted) return 'aborted';

@@ -24,21 +24,34 @@
     "service_worker": "background/sw.js",
     "type": "module"
   },
-  "permissions": ["sidePanel", "storage", "tabs", "scripting"],
+  "permissions": ["sidePanel", "storage", "tabs", "scripting", "offscreen", "declarativeNetRequestWithHostAccess"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {
-      "matches": ["https://www.facebook.com/ads/library/*", "https://library.tiktok.com/*"],
+      "matches": ["https://www.facebook.com/ads/library/*"],
       "js": ["content/hook-main.js"],
       "run_at": "document_start",
       "all_frames": false,
       "world": "MAIN"
     },
     {
-      "matches": ["https://www.facebook.com/ads/library/*", "https://library.tiktok.com/*"],
+      "matches": ["https://www.facebook.com/ads/library/*"],
       "js": ["content/relay.js"],
       "run_at": "document_start",
       "all_frames": false
+    },
+    {
+      "matches": ["https://library.tiktok.com/*"],
+      "js": ["content/hook-main.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://library.tiktok.com/*"],
+      "js": ["content/relay.js"],
+      "run_at": "document_start",
+      "all_frames": true
     }
   ]
 }

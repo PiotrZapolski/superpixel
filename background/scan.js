@@ -24,6 +24,7 @@ import {
   closeScanTab,
   closeScanWindow,
 } from './hidden-tab.js';
+import { openCaptureFrame, openCaptureFrameDom, closeCaptureFrames, frameCapable } from './frame-capture.js';
 
 /** Min interval between requests per platform (spec section 4; Bing 429s after ~5 quick calls). */
 export const THROTTLE_MS = { google: 900, meta: 1000, tiktok: 3000, linkedin: 2500, bing: 1500, snap: 3000 };
@@ -233,6 +234,19 @@ async function layerA({ mode, domain, tabId }, settings, emit, signal) {
 
 function buildCtx(adapter, settings, emit, signal, stats) {
   const id = adapter.meta.id;
+  // Something outside Superpixel (another extension) may close every TikTok tab right after it
+  // loads (issue #17). After the first tab_closed the rest of this run captures through the
+  // offscreen frame (frame-capture.js), which no tab-managing extension can close.
+  let useFrame = false;
+  const viaFrame = async (url, tabCapture, frameCapture) => {
+    const canFrame = frameCapable(url) && !(signal && signal.aborted);
+    if (useFrame && canFrame) return frameCapture();
+    const cap = await tabCapture();
+    if (!canFrame || !cap || cap.error !== 'tab_closed') return cap;
+    useFrame = true;
+    logWarn(id, 'Capture tab closed right after loading, switching to the offscreen frame for this run');
+    return frameCapture();
+  };
   return {
     settings,
     signal,
@@ -252,11 +266,19 @@ function buildCtx(adapter, settings, emit, signal, stats) {
     throttle: () => getThrottle(id, THROTTLE_MS[id] || 1000)(signal),
     capture: (url, opts = {}) => {
       stats.requests++;
-      return openCaptureTab(url, { platform: id, ...opts, showScanTabs: !!settings.showScanTabs, signal });
+      return viaFrame(
+        url,
+        () => openCaptureTab(url, { platform: id, ...opts, showScanTabs: !!settings.showScanTabs, signal }),
+        () => openCaptureFrame(url, { ...opts, signal })
+      );
     },
     captureDom: (url, { waitMs = 6000 } = {}) => {
       stats.requests++;
-      return openCaptureTabDom(url, { waitMs, showScanTabs: !!settings.showScanTabs, signal });
+      return viaFrame(
+        url,
+        () => openCaptureTabDom(url, { waitMs, showScanTabs: !!settings.showScanTabs, signal }),
+        () => openCaptureFrameDom(url, { waitMs, signal })
+      );
     },
     progress: (text) => emit({ type: 'progress', id, text: String(text) }),
     // Adapter diagnostics into the debug log. Callers must never pass bodies or query strings.
@@ -503,6 +525,7 @@ export async function runScan({ input, force } = {}, emit, signal) {
   } finally {
     try {
       await closeScanWindow();
+      await closeCaptureFrames();
     } finally {
       // Ships the batch only with consent; never throws, not awaited so the scan ends promptly.
       remoteLog().scanEnd().catch(() => {});
