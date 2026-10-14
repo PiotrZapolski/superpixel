@@ -120,6 +120,21 @@ export const logInfo = (src, msg) => log('info', src, msg);
 export const logWarn = (src, msg) => log('warn', src, msg);
 export const logError = (src, msg) => log('error', src, msg);
 
+/**
+ * Log a non-2xx answer of an adapter request (host + path only, never the query string).
+ * expectedFailure: the adapter handles this failure as a known outage (issue #36), so it is info,
+ * not a warning. Returns the entry, or null for a 2xx answer.
+ * @param {string} src
+ * @param {number} status
+ * @param {string} url
+ * @param {{expectedFailure?:boolean}} [opts]
+ */
+export function logHttpStatus(src, status, url, { expectedFailure = false } = {}) {
+  if (status >= 200 && status < 300) return null;
+  if (expectedFailure) return log('info', src, `HTTP ${status} ${safeUrl(url)} (expected, handled)`);
+  return log('warn', src, `HTTP ${status} ${safeUrl(url)}`);
+}
+
 /** @returns {Promise<{t:string, level:string, src:string, msg:string}[]>} */
 export async function getLog() {
   await ensureLoaded();

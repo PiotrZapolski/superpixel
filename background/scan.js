@@ -14,7 +14,7 @@ import * as searchapi from '../adapters/searchapi.js';
 import { loadSettings } from './settings.js';
 import * as cache from './cache.js';
 import { getThrottle } from './queue.js';
-import { log, logInfo, logWarn, logError, safeUrl, errText } from './log.js';
+import { log, logInfo, logWarn, logError, logHttpStatus, safeUrl, errText } from './log.js';
 import { remoteLog } from './remote-log.js';
 import {
   openCaptureTab,
@@ -24,7 +24,8 @@ import {
   closeScanTab,
   closeScanWindow,
 } from './hidden-tab.js';
-import { openCaptureFrame, openCaptureFrameDom, closeCaptureFrames, frameCapable } from './frame-capture.js';
+import { openCaptureFrame, openCaptureFrameDom, closeCaptureFrames, createFrameRouter } from './frame-capture.js';
+import { storageMemory } from './memory.js';
 
 /** Min interval between requests per platform (spec section 4; Bing 429s after ~5 quick calls). */
 export const THROTTLE_MS = { google: 900, meta: 1000, tiktok: 3000, linkedin: 2500, bing: 1500, snap: 3000 };
@@ -235,32 +236,27 @@ async function layerA({ mode, domain, tabId }, settings, emit, signal) {
 function buildCtx(adapter, settings, emit, signal, stats) {
   const id = adapter.meta.id;
   // Something outside Superpixel (another extension) may close every TikTok tab right after it
-  // loads (issue #17). After the first tab_closed the rest of this run captures through the
-  // offscreen frame (frame-capture.js), which no tab-managing extension can close.
-  let useFrame = false;
-  const viaFrame = async (url, tabCapture, frameCapture) => {
-    const canFrame = frameCapable(url) && !(signal && signal.aborted);
-    if (useFrame && canFrame) return frameCapture();
-    const cap = await tabCapture();
-    if (!canFrame || !cap || cap.error !== 'tab_closed') return cap;
-    useFrame = true;
-    logWarn(id, 'Capture tab closed right after loading, switching to the offscreen frame for this run');
-    return frameCapture();
-  };
+  // loads (issue #17). The router switches to the offscreen frame (frame-capture.js), which no
+  // tab-managing extension can close, and remembers that for later runs.
+  const viaFrame = createFrameRouter({ memory: storageMemory, signal, log: (level, msg) => log(level, id, msg) });
   return {
     settings,
     signal,
+    memory: storageMemory,
+    // init.expectedFailure: the adapter handles a non-2xx answer of this request as a known
+    // outage (Bing text search, issue #36), so it is logged as info, not as a warning.
     fetch: async (url, init = {}) => {
       stats.requests++;
+      const { expectedFailure, ...rest } = init || {};
       let res;
       try {
-        res = await fetch(url, { credentials: 'include', ...init, signal: init.signal || fetchSignal(signal) });
+        res = await fetch(url, { credentials: 'include', ...rest, signal: rest.signal || fetchSignal(signal) });
       } catch (e) {
         if (!(signal && signal.aborted)) logWarn(id, `Fetch failed ${safeUrl(url)}: ${errText(e)}`);
         throw e;
       }
       // Never log query strings: they can carry the SearchAPI key.
-      if (res && (res.status < 200 || res.status >= 300)) logWarn(id, `HTTP ${res.status} ${safeUrl(url)}`);
+      if (res) logHttpStatus(id, res.status, url, { expectedFailure: !!expectedFailure });
       return res;
     },
     throttle: () => getThrottle(id, THROTTLE_MS[id] || 1000)(signal),

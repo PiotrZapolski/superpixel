@@ -4,6 +4,7 @@ import { hostMatches, unwrapRedirect, domainLabel } from '../lib/domain.js';
 import { sleep, toIsoDate } from '../lib/util.js';
 import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, nameQueries } from '../lib/model.js';
 import { backoff } from '../background/queue.js';
+import { memGet, memSet, memRemove } from '../background/memory.js';
 
 export const meta = { id: 'bing', label: 'Microsoft Advertising (Bing)', coverage: 'EU/EEA-served ads' };
 
@@ -18,6 +19,10 @@ export const MAX_429_RETRIES = 2;
 /** Waits before the extra attempts after a 5xx (Microsoft outage 2026-10-14: every Ads search 500). */
 export const SERVER_RETRY_DELAYS = [2000, 5000];
 const SERVER_ERROR_CODES = new Set([500, 502, 503, 504]);
+/** ctx.memory key: until when (ms) the Ads?searchText domain search is skipped after it failed. */
+export const TEXT_DOWN_KEY = 'bingTextDownUntil';
+export const TEXT_DOWN_MS = 60 * 60 * 1000;
+export const TEXT_SKIPPED_MSG = 'Microsoft ad text search skipped, it failed in the last hour';
 
 // ---------------------------------------------------------------------------------------------
 // Pure helpers
@@ -182,6 +187,7 @@ function retryDelay(attempt) {
  * A 429 is checked before any parsing: its HTML body is never read as a format change.
  * A fetch exception or timeout counts as a server error for this request; a user abort is rethrown.
  * opts.serverRetries: how many 5xx retries (default SERVER_RETRY_DELAYS.length, 0 = none).
+ * opts.expectedFailure: passed to ctx.fetch so a non-2xx answer is logged as info, not a warning.
  */
 async function getJson(ctx, url, opts = {}) {
   const maxServerRetries = Number.isInteger(opts.serverRetries) ? Math.max(0, opts.serverRetries) : SERVER_RETRY_DELAYS.length;
@@ -189,8 +195,10 @@ async function getJson(ctx, url, opts = {}) {
   for (let attempt = 0; ; attempt += 1) {
     if (ctx.throttle) await ctx.throttle();
     let res;
+    const init = { credentials: 'omit', headers: { Accept: 'application/json' } };
+    if (opts.expectedFailure) init.expectedFailure = true;
     try {
-      res = await ctx.fetch(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+      res = await ctx.fetch(url, init);
     } catch (err) {
       if (ctx.signal && ctx.signal.aborted) throw err;
       const timedOut = err && (err.name === 'TimeoutError' || /timed? ?out/i.test(String(err.message || '')));
@@ -300,11 +308,19 @@ export async function search(seeds, ctx) {
     const lists = await searchAdvertisers(queries);
     advList = mergeAdvertiserLists(lists, cap);
     await loadAds(advList);
-    if (!rateLimited && domain) {
+    // Circuit breaker (issue #36): after the text search failed on Microsoft's side, skip it for
+    // TEXT_DOWN_MS and go straight to the advertiser fallback below.
+    const downUntil = !rateLimited && domain ? Number(await memGet(ctx.memory, TEXT_DOWN_KEY)) : 0;
+    const textSkipped = Number.isFinite(downUntil) && downUntil > Date.now();
+    if (!rateLimited && domain && textSkipped) {
+      textServerError = 'skipped';
+      progress(TEXT_SKIPPED_MSG);
+      try { ctx.log && ctx.log('info', TEXT_SKIPPED_MSG); } catch { /* ignore */ }
+    } else if (!rateLimited && domain) {
       progress(`Searching ads mentioning ${domain}`);
       // Supplementary query: no 5xx retries (live 2026-10-14 they only burned Microsoft's rate
       // budget and turned into 429s). A 429 or 5xx here is non-fatal: fall back to advertisers.
-      const r = await getJson(ctx, adsBySearchUrl(domain, ADS_TOP), { serverRetries: 0 });
+      const r = await getJson(ctx, adsBySearchUrl(domain, ADS_TOP), { serverRetries: 0, expectedFailure: true });
       if (r.rateLimited) {
         textRateLimited = true;
         textServerError = textServerError || 'HTTP 429';
@@ -315,8 +331,12 @@ export async function search(seeds, ctx) {
       else {
         const parsed = parseBingAds(r.json, domain);
         if (parsed === null) changed = true;
-        else collected = collected.concat(parsed.ads);
+        else {
+          collected = collected.concat(parsed.ads);
+          if (downUntil) await memRemove(ctx.memory, TEXT_DOWN_KEY);
+        }
       }
+      if (textServerError) await memSet(ctx.memory, TEXT_DOWN_KEY, Date.now() + TEXT_DOWN_MS);
     }
     // Microsoft outage 2026-10-14: Ads?searchText answers 500 for every query while Advertisers
     // and Ads?advertiserId work. Fall back to the advertiser path for the domain itself
