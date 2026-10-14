@@ -1,6 +1,7 @@
 // Service worker entry: side panel behaviour, port protocol, runtime messages from the relay.
 import { runScan } from './scan.js';
 import { handleRuntimeMessage } from './hidden-tab.js';
+import { handleFrameMessage, handleFramePort } from './frame-capture.js';
 import { loadSettings, saveSettings } from './settings.js';
 import * as cache from './cache.js';
 import { logInfo, logError, errText, getLog, clearLog } from './log.js';
@@ -75,6 +76,15 @@ async function startScan(port, msg) {
     });
   current = entry;
 }
+
+// Ports of the offscreen capture frame (offscreen document + relay in the frame).
+chrome.runtime.onConnect.addListener((port) => {
+  try {
+    handleFramePort(port);
+  } catch (e) {
+    logError('sw', `Frame port failed: ${errText(e)}`);
+  }
+});
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'superpixel') return;
@@ -156,7 +166,9 @@ chrome.runtime.onConnect.addListener((port) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   let res;
   try {
-    res = handleRuntimeMessage(msg, sender);
+    // A relay without a tab can only be the offscreen capture frame (frame-capture.js).
+    res = sender && !sender.tab ? handleFrameMessage(msg, sender) : undefined;
+    if (res === undefined) res = handleRuntimeMessage(msg, sender);
   } catch (e) {
     logError('sw', `Runtime message failed: ${errText(e)}`);
     res = undefined;
