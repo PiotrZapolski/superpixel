@@ -5,6 +5,7 @@ export const STATUS_LABELS = {
   empty: 'No ads',
   error: 'Error',
   rate_limited: 'Rate limited',
+  unavailable: 'Unavailable',
   needs_user: 'Needs you',
   changed: 'Changed',
   skipped: 'Skipped',

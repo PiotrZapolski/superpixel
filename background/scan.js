@@ -30,7 +30,7 @@ export const THROTTLE_MS = { google: 900, meta: 1000, tiktok: 3000, linkedin: 25
 /** First wave: their advertisers seed the name-based platforms of the second wave. */
 export const FIRST_WAVE = ['google', 'meta'];
 const FETCH_TIMEOUT_MS = 30000;
-const FALLBACK_STATUSES = new Set(['changed', 'error', 'rate_limited']);
+const FALLBACK_STATUSES = new Set(['changed', 'error', 'rate_limited', 'unavailable']);
 const CACHEABLE_STATUSES = new Set(['ok', 'empty']);
 
 function isAbort(e, signal) {

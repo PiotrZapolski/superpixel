@@ -15,6 +15,9 @@ export const ADS_PAGES = 2;
 export const ADVERTISERS_TOP = 20;
 /** Retries after a 429 before giving up with rate_limited. */
 export const MAX_429_RETRIES = 2;
+/** Waits before the extra attempts after a 5xx (Microsoft outage 2026-10-14: every Ads search 500). */
+export const SERVER_RETRY_DELAYS = [2000, 5000];
+const SERVER_ERROR_CODES = new Set([500, 502, 503, 504]);
 
 // ---------------------------------------------------------------------------------------------
 // Pure helpers
@@ -174,13 +177,31 @@ function retryDelay(attempt) {
 }
 
 /**
- * GET JSON with 429 backoff (2 retries) -> {json, status} | {rateLimited:true} | {status, error}.
+ * GET JSON with 429 backoff (2 retries) and 5xx retries (2 extra attempts) ->
+ * {json, status} | {rateLimited:true} | {status, error} | {status, error, serverError:true}.
  * A 429 is checked before any parsing: its HTML body is never read as a format change.
+ * A fetch exception or timeout counts as a server error for this request; a user abort is rethrown.
  */
 async function getJson(ctx, url) {
+  let serverRetries = 0;
   for (let attempt = 0; ; attempt += 1) {
     if (ctx.throttle) await ctx.throttle();
-    const res = await ctx.fetch(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+    let res;
+    try {
+      res = await ctx.fetch(url, { credentials: 'omit', headers: { Accept: 'application/json' } });
+    } catch (err) {
+      if (ctx.signal && ctx.signal.aborted) throw err;
+      const timedOut = err && (err.name === 'TimeoutError' || /timed? ?out/i.test(String(err.message || '')));
+      return { status: 0, error: timedOut ? 'timeout' : 'network error', serverError: true };
+    }
+    if (SERVER_ERROR_CODES.has(res.status)) {
+      if (serverRetries >= SERVER_RETRY_DELAYS.length) return { status: res.status, error: `HTTP ${res.status}`, serverError: true };
+      // ctx.retryDelay: optional override (tests); default 2s, then 5s.
+      const wait = typeof ctx.retryDelay === 'function' ? ctx.retryDelay(serverRetries) : SERVER_RETRY_DELAYS[serverRetries];
+      serverRetries += 1;
+      await sleep(wait, ctx.signal);
+      continue;
+    }
     if (res.status === 429) {
       if (attempt >= MAX_429_RETRIES) return { rateLimited: true };
       // ctx.retryDelay: optional override (tests); default queue.js backoff 3s, 10s.
@@ -210,6 +231,8 @@ export async function search(seeds, ctx) {
   let rateLimited = false;
   let changed = false;
   let error = '';
+  /** First Microsoft-side failure (5xx after retries, timeout), e.g. 'HTTP 500'. */
+  let serverError = '';
   const progress = (t) => { try { ctx.progress && ctx.progress(t); } catch { /* ignore */ } };
 
   const finish = (status, message) => {
@@ -232,6 +255,7 @@ export async function search(seeds, ctx) {
       progress(`Searching advertisers "${q}"`);
       const r = await getJson(ctx, advertisersUrl(q, ADVERTISERS_TOP));
       if (r.rateLimited) rateLimited = true;
+      else if (r.serverError) serverError = serverError || r.error;
       else if (r.error) error = error || r.error;
       else {
         const parsed = parseBingAdvertisers(r.json);
@@ -245,6 +269,7 @@ export async function search(seeds, ctx) {
         progress(`Loading ads of ${advList[i].name || advList[i].id} (${i + 1}/${advList.length})${page ? `, page ${page + 1}` : ''}`);
         const r = await getJson(ctx, adsByAdvertiserUrl(advList[i].id, ADS_TOP, page * ADS_TOP));
         if (r.rateLimited) { rateLimited = true; break; }
+        if (r.serverError) { serverError = serverError || r.error; break; }
         if (r.error) { error = r.error; break; }
         const parsed = parseBingAds(r.json, domain);
         if (parsed === null) { changed = true; break; }
@@ -258,6 +283,7 @@ export async function search(seeds, ctx) {
       progress(`Searching ads mentioning ${domain}`);
       const r = await getJson(ctx, adsBySearchUrl(domain, ADS_TOP));
       if (r.rateLimited) rateLimited = true;
+      else if (r.serverError) serverError = serverError || r.error;
       else if (r.error) error = error || r.error;
       else {
         const parsed = parseBingAds(r.json, domain);
@@ -280,10 +306,16 @@ export async function search(seeds, ctx) {
     }
     if (confirmed) {
       const kept = filterBingAds(collected, advList.map((a) => a.id));
-      return finish('ok', `${kept.length} ads, ${confirmed} pointing to ${domain}`);
+      const note = serverError ? ", some Microsoft searches failed on Microsoft's side" : '';
+      return finish('ok', `${kept.length} ads, ${confirmed} pointing to ${domain}${note}`);
     }
     if (changed) return finish('changed', 'Microsoft Ad Library changed its response format');
     if (error && !collected.length) return finish('error', `Microsoft Ad Library returned ${error}`);
+    if (serverError) {
+      // Not 'empty': some searches never answered, so "no ads" is a claim we cannot make.
+      noMatch();
+      return finish('unavailable', `Microsoft Ad Library is not responding on Microsoft's side (${serverError}), try again later`);
+    }
     noMatch();
     return finish('empty', `No Bing ads point to ${domain} (searched: ${queries.join(', ')})`);
   } catch (err) {

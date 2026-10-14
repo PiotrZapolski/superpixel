@@ -285,3 +285,96 @@ test('search() rate limited without confirmed ads shows no unrelated advertisers
   assert.deepEqual(res.ads, []);
   assert.deepEqual(res.advertisers, []);
 });
+
+// ---- Microsoft outage 2026-10-14: every Ads?searchText request answers 500 / 503 ----
+
+test('search() retries a 5xx twice and continues normally when it recovers', async () => {
+  let failures = 2;
+  const delays = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay(attempt) { delays.push(attempt); return 0; },
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) {
+        if (failures > 0) { failures -= 1; return fakeResponse('', 503); }
+        return fakeResponse(ADVERTISERS);
+      }
+      if (url.includes('advertiserId=1001')) return fakeResponse(ADS);
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.deepEqual(delays, [0, 1]);
+  assert.deepEqual(res.ads.map((a) => a.id).sort(), ['5001', '5002']);
+  assert.ok(!/Microsoft's side/.test(res.message));
+});
+
+test('search() is unavailable, not empty or error, when every Ads search returns 500', async () => {
+  let adsCalls = 0;
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [{ AdvertiserId: 3002, AdvertiserName: 'BLG srl' }] });
+      adsCalls += 1;
+      return fakeResponse('', 500);
+    },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'BLG' }, ctx);
+  assert.equal(res.status, 'unavailable');
+  assert.equal(res.message, "Microsoft Ad Library is not responding on Microsoft's side (HTTP 500), try again later");
+  // The advertiser's ads query and the domain search both ran, 3 attempts each.
+  assert.equal(adsCalls, 6);
+  assert.deepEqual(res.ads, []);
+  assert.deepEqual(res.advertisers, []);
+});
+
+test('search() keeps confirmed ads when one query fails with 500, adding a note', async () => {
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) return fakeResponse(ADVERTISERS);
+      if (url.includes('advertiserId=1001')) return fakeResponse(ADS);
+      if (url.includes('searchText=')) return fakeResponse('', 500);
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.match(res.message, /, some Microsoft searches failed on Microsoft's side$/);
+  assert.deepEqual(res.ads.map((a) => a.id).sort(), ['5001', '5002']);
+});
+
+test('search() treats a fetch timeout on one query as unavailable, not a failed adapter', async () => {
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      const err = new Error('The operation timed out.');
+      err.name = 'TimeoutError';
+      throw err;
+    },
+  };
+  const res = await search({ domain: 'babylovegrowth.ai', brand: 'BLG' }, ctx);
+  assert.equal(res.status, 'unavailable');
+  assert.match(res.message, /\(timeout\)/);
+});
+
+test('search() still ends as error on a non-5xx HTTP error such as 400', async () => {
+  let calls = 0;
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch() {
+      calls += 1;
+      return fakeResponse('bad request', 400);
+    },
+  };
+  const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
+  assert.equal(res.status, 'error');
+  assert.equal(res.message, 'Microsoft Ad Library returned HTTP 400');
+  assert.equal(calls, 2);
+});
