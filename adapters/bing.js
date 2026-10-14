@@ -181,8 +181,10 @@ function retryDelay(attempt) {
  * {json, status} | {rateLimited:true} | {status, error} | {status, error, serverError:true}.
  * A 429 is checked before any parsing: its HTML body is never read as a format change.
  * A fetch exception or timeout counts as a server error for this request; a user abort is rethrown.
+ * opts.serverRetries: how many 5xx retries (default SERVER_RETRY_DELAYS.length, 0 = none).
  */
-async function getJson(ctx, url) {
+async function getJson(ctx, url, opts = {}) {
+  const maxServerRetries = Number.isInteger(opts.serverRetries) ? Math.max(0, opts.serverRetries) : SERVER_RETRY_DELAYS.length;
   let serverRetries = 0;
   for (let attempt = 0; ; attempt += 1) {
     if (ctx.throttle) await ctx.throttle();
@@ -195,7 +197,7 @@ async function getJson(ctx, url) {
       return { status: 0, error: timedOut ? 'timeout' : 'network error', serverError: true };
     }
     if (SERVER_ERROR_CODES.has(res.status)) {
-      if (serverRetries >= SERVER_RETRY_DELAYS.length) return { status: res.status, error: `HTTP ${res.status}`, serverError: true };
+      if (serverRetries >= Math.min(maxServerRetries, SERVER_RETRY_DELAYS.length)) return { status: res.status, error: `HTTP ${res.status}`, serverError: true };
       // ctx.retryDelay: optional override (tests); default 2s, then 5s.
       const wait = typeof ctx.retryDelay === 'function' ? ctx.retryDelay(serverRetries) : SERVER_RETRY_DELAYS[serverRetries];
       serverRetries += 1;
@@ -235,6 +237,8 @@ export async function search(seeds, ctx) {
   let serverError = '';
   /** Same, on the Ads?searchText domain search (down for every query in the 2026-10-14 outage). */
   let textServerError = '';
+  /** The Ads?searchText domain search stayed 429: non-fatal, the advertiser fallback still runs. */
+  let textRateLimited = false;
   /** Every advertiser name query sent, for the empty message. */
   const searched = [];
   const progress = (t) => { try { ctx.progress && ctx.progress(t); } catch { /* ignore */ } };
@@ -298,9 +302,15 @@ export async function search(seeds, ctx) {
     await loadAds(advList);
     if (!rateLimited && domain) {
       progress(`Searching ads mentioning ${domain}`);
-      const r = await getJson(ctx, adsBySearchUrl(domain, ADS_TOP));
-      if (r.rateLimited) rateLimited = true;
-      else if (r.serverError) textServerError = textServerError || r.error;
+      // Supplementary query: no 5xx retries (live 2026-10-14 they only burned Microsoft's rate
+      // budget and turned into 429s). A 429 or 5xx here is non-fatal: fall back to advertisers.
+      const r = await getJson(ctx, adsBySearchUrl(domain, ADS_TOP), { serverRetries: 0 });
+      if (r.rateLimited) {
+        textRateLimited = true;
+        textServerError = textServerError || 'HTTP 429';
+        // Let Microsoft's rate window cool down once before the advertiser fallback.
+        await sleep(typeof ctx.retryDelay === 'function' ? ctx.retryDelay(MAX_429_RETRIES - 1) : retryDelay(MAX_429_RETRIES - 1), ctx.signal);
+      } else if (r.serverError) textServerError = textServerError || r.error;
       else if (r.error) error = error || r.error;
       else {
         const parsed = parseBingAds(r.json, domain);
@@ -329,6 +339,7 @@ export async function search(seeds, ctx) {
     // Name search alone is noise (live 2026-09-26: "BLG" matched "BLG srl" and a car dealer):
     // without an ad pointing to the domain, show nothing rather than unrelated advertisers.
     const confirmed = collected.filter((a) => a.match === 'confirmed').length;
+    const textIssue = textRateLimited ? "Microsoft's ad text search is rate limited" : "Microsoft's ad text search is down";
     const noMatch = () => {
       collected = [];
       advList = [];
@@ -342,7 +353,7 @@ export async function search(seeds, ctx) {
       const kept = filterBingAds(collected, advList.map((a) => a.id));
       let note = '';
       if (serverError) note = ", some Microsoft searches failed on Microsoft's side";
-      else if (textServerError) note = ", Microsoft's ad text search is down, searched by advertiser";
+      else if (textServerError) note = `, ${textIssue}, searched by advertiser`;
       return finish('ok', `${kept.length} ads, ${confirmed} pointing to ${domain}${note}`);
     }
     if (changed) return finish('changed', 'Microsoft Ad Library changed its response format');
@@ -355,7 +366,7 @@ export async function search(seeds, ctx) {
     noMatch();
     if (textServerError) {
       // Only the text search failed; the advertiser path (domain label included) answered.
-      return finish('empty', `No Bing ads point to ${domain} (searched advertisers: ${searched.join(', ')}; Microsoft's ad text search is down)`);
+      return finish('empty', `No Bing ads point to ${domain} (searched advertisers: ${searched.join(', ')}; ${textIssue})`);
     }
     return finish('empty', `No Bing ads point to ${domain} (searched: ${queries.join(', ')})`);
   } catch (err) {
