@@ -1,6 +1,6 @@
 // Microsoft Advertising (Bing) Ad Library adapter (spec 4.5). Public JSON API, no auth.
 
-import { hostMatches, unwrapRedirect } from '../lib/domain.js';
+import { hostMatches, unwrapRedirect, domainLabel } from '../lib/domain.js';
 import { sleep, toIsoDate } from '../lib/util.js';
 import { makeAd, makeResult, aggregateAdvertisers, promoteAdvertiserMatches, dedupeAds, nameQueries } from '../lib/model.js';
 import { backoff } from '../background/queue.js';
@@ -231,8 +231,12 @@ export async function search(seeds, ctx) {
   let rateLimited = false;
   let changed = false;
   let error = '';
-  /** First Microsoft-side failure (5xx after retries, timeout), e.g. 'HTTP 500'. */
+  /** First Microsoft-side failure (5xx after retries, timeout) on an advertiser search or ads-by-advertiser call. */
   let serverError = '';
+  /** Same, on the Ads?searchText domain search (down for every query in the 2026-10-14 outage). */
+  let textServerError = '';
+  /** Every advertiser name query sent, for the empty message. */
+  const searched = [];
   const progress = (t) => { try { ctx.progress && ctx.progress(t); } catch { /* ignore */ } };
 
   const finish = (status, message) => {
@@ -246,12 +250,12 @@ export async function search(seeds, ctx) {
     return makeResult(meta, { status, message, ads, advertisers, deepLinks: links });
   };
 
-  try {
-    // Advertiser search for the brand and for each advertiser name found on Google/Meta
-    // (the legal name, e.g. "BLG", often differs from the domain label).
+  /** Advertiser search for each query -> list of advertiser lists (one per successful query). */
+  const searchAdvertisers = async (qs) => {
     const lists = [];
-    for (const q of queries) {
+    for (const q of qs) {
       if (rateLimited) break;
+      searched.push(q);
       progress(`Searching advertisers "${q}"`);
       const r = await getJson(ctx, advertisersUrl(q, ADVERTISERS_TOP));
       if (r.rateLimited) rateLimited = true;
@@ -263,11 +267,15 @@ export async function search(seeds, ctx) {
         else lists.push(parsed);
       }
     }
-    advList = mergeAdvertiserLists(lists, Math.max(0, Number(settings.bingAdvertisers) || 6));
-    for (let i = 0; i < advList.length && !rateLimited; i += 1) {
+    return lists;
+  };
+
+  /** Load up to ADS_PAGES pages of ads for each advertiser in `list`. */
+  const loadAds = async (list) => {
+    for (let i = 0; i < list.length && !rateLimited; i += 1) {
       for (let page = 0; page < ADS_PAGES && !rateLimited; page += 1) {
-        progress(`Loading ads of ${advList[i].name || advList[i].id} (${i + 1}/${advList.length})${page ? `, page ${page + 1}` : ''}`);
-        const r = await getJson(ctx, adsByAdvertiserUrl(advList[i].id, ADS_TOP, page * ADS_TOP));
+        progress(`Loading ads of ${list[i].name || list[i].id} (${i + 1}/${list.length})${page ? `, page ${page + 1}` : ''}`);
+        const r = await getJson(ctx, adsByAdvertiserUrl(list[i].id, ADS_TOP, page * ADS_TOP));
         if (r.rateLimited) { rateLimited = true; break; }
         if (r.serverError) { serverError = serverError || r.error; break; }
         if (r.error) { error = r.error; break; }
@@ -279,16 +287,42 @@ export async function search(seeds, ctx) {
         if (!more) break;
       }
     }
+  };
+
+  try {
+    // Advertiser search for the brand and for each advertiser name found on Google/Meta
+    // (the legal name, e.g. "BLG", often differs from the domain label).
+    const cap = Math.max(0, Number(settings.bingAdvertisers) || 6);
+    const lists = await searchAdvertisers(queries);
+    advList = mergeAdvertiserLists(lists, cap);
+    await loadAds(advList);
     if (!rateLimited && domain) {
       progress(`Searching ads mentioning ${domain}`);
       const r = await getJson(ctx, adsBySearchUrl(domain, ADS_TOP));
       if (r.rateLimited) rateLimited = true;
-      else if (r.serverError) serverError = serverError || r.error;
+      else if (r.serverError) textServerError = textServerError || r.error;
       else if (r.error) error = error || r.error;
       else {
         const parsed = parseBingAds(r.json, domain);
         if (parsed === null) changed = true;
         else collected = collected.concat(parsed.ads);
+      }
+    }
+    // Microsoft outage 2026-10-14: Ads?searchText answers 500 for every query while Advertisers
+    // and Ads?advertiserId work. Fall back to the advertiser path for the domain itself
+    // ("pupilkarma", "pupilkarma.pl") and let the landing URL confirm the match.
+    if (textServerError && !rateLimited) {
+      const known = new Set(searched.map((q) => q.toLowerCase()));
+      const extraQueries = [];
+      for (const q of [domainLabel(domain), domain]) {
+        if (q && !known.has(q.toLowerCase())) { known.add(q.toLowerCase()); extraQueries.push(q); }
+      }
+      const extraLists = await searchAdvertisers(extraQueries);
+      if (extraLists.length) {
+        const loaded = new Set(advList.map((a) => String(a.id)));
+        const extra = mergeAdvertiserLists([...lists, ...extraLists], cap).filter((a) => !loaded.has(String(a.id)));
+        advList = advList.concat(extra);
+        await loadAds(extra);
       }
     }
 
@@ -306,17 +340,23 @@ export async function search(seeds, ctx) {
     }
     if (confirmed) {
       const kept = filterBingAds(collected, advList.map((a) => a.id));
-      const note = serverError ? ", some Microsoft searches failed on Microsoft's side" : '';
+      let note = '';
+      if (serverError) note = ", some Microsoft searches failed on Microsoft's side";
+      else if (textServerError) note = ", Microsoft's ad text search is down, searched by advertiser";
       return finish('ok', `${kept.length} ads, ${confirmed} pointing to ${domain}${note}`);
     }
     if (changed) return finish('changed', 'Microsoft Ad Library changed its response format');
     if (error && !collected.length) return finish('error', `Microsoft Ad Library returned ${error}`);
     if (serverError) {
-      // Not 'empty': some searches never answered, so "no ads" is a claim we cannot make.
+      // Not 'empty': advertiser searches or their ads never answered, so "no ads" is a claim we cannot make.
       noMatch();
       return finish('unavailable', `Microsoft Ad Library is not responding on Microsoft's side (${serverError}), try again later`);
     }
     noMatch();
+    if (textServerError) {
+      // Only the text search failed; the advertiser path (domain label included) answered.
+      return finish('empty', `No Bing ads point to ${domain} (searched advertisers: ${searched.join(', ')}; Microsoft's ad text search is down)`);
+    }
     return finish('empty', `No Bing ads point to ${domain} (searched: ${queries.join(', ')})`);
   } catch (err) {
     if (ctx && ctx.signal && ctx.signal.aborted) return finish('error', 'Stopped');
