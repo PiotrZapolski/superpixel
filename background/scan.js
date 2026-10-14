@@ -24,7 +24,7 @@ import {
   closeScanTab,
   closeScanWindow,
 } from './hidden-tab.js';
-import { openCaptureFrame, openCaptureFrameDom, closeCaptureFrames, createFrameRouter } from './frame-capture.js';
+import { openCaptureFrame, openCaptureFrameDom, closeCaptureFrames, createFrameRouter, frameCapable } from './frame-capture.js';
 import { storageMemory } from './memory.js';
 
 /** Min interval between requests per platform (spec section 4; Bing 429s after ~5 quick calls). */
@@ -269,7 +269,7 @@ function buildCtx(adapter, settings, emit, signal, stats) {
       stats.requests++;
       return viaFrame(
         url,
-        () => openCaptureTab(url, { platform: id, ...opts, showScanTabs: !!settings.showScanTabs, signal }),
+        () => openCaptureTab(url, { platform: id, ...opts, showScanTabs: !!settings.showScanTabs, signal, closeRecoverable: frameCapable(url) }),
         () => openCaptureFrame(url, { ...opts, signal })
       );
     },

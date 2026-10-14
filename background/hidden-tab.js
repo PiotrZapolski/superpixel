@@ -421,6 +421,8 @@ export async function openCaptureTab(url, opts = {}) {
     showScanTabs = false,
     signal,
     until,
+    // The caller recovers a closed tab (TikTok switches to the offscreen frame, issue #17).
+    closeRecoverable = false,
   } = opts;
   const session = newSession();
   let tabId = null;
@@ -485,7 +487,7 @@ export async function openCaptureTab(url, opts = {}) {
   }
   if (tabId != null) {
     const msg = `Close tab ${safeUrl(url)}: ${session.payloads.length} payloads${error ? `, ${errorWithDetail(error, session)}` : ''}${tabUrl ? `, ended on ${safeUrl(tabUrl)}` : ''}`;
-    if (error && error !== 'aborted') logWarn('capture', msg);
+    if (error && error !== 'aborted' && !(error === 'tab_closed' && closeRecoverable)) logWarn('capture', msg);
     else logInfo('capture', msg);
   }
   return { payloads: session.payloads, tabUrl, error };
