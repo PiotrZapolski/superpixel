@@ -274,9 +274,10 @@ test('search() rate limited without confirmed ads shows no unrelated advertisers
     retryDelay: () => 0,
     async fetch(url) {
       n += 1;
-      if (url.includes('/Advertisers?')) return fakeResponse({ value: [{ AdvertiserId: 3002, AdvertiserName: 'BLG srl' }] });
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [{ AdvertiserId: 3002, AdvertiserName: 'BLG srl' }, { AdvertiserId: 3003, AdvertiserName: 'BLG GmbH' }] });
       if (url.includes('advertiserId=3002')) return fakeResponse(adsPage(3002, 2, 2, { domain: 'blg.it' }));
-      return fakeResponse('<html>Too Many Requests</html>', 429);
+      if (url.includes('advertiserId=3003')) return fakeResponse('<html>Too Many Requests</html>', 429);
+      return fakeResponse({ '@odata.count': 0, value: [] });
     },
   };
   const res = await search({ domain: 'babylovegrowth.ai', brand: 'BLG' }, ctx);
@@ -324,8 +325,8 @@ test('search() is unavailable, not empty or error, when every Ads search returns
   const res = await search({ domain: 'babylovegrowth.ai', brand: 'BLG' }, ctx);
   assert.equal(res.status, 'unavailable');
   assert.equal(res.message, "Microsoft Ad Library is not responding on Microsoft's side (HTTP 500), try again later");
-  // The advertiser's ads query and the domain search both ran, 3 attempts each.
-  assert.equal(adsCalls, 6);
+  // The advertiser's ads query ran 3 attempts; the domain text search ran once (never retried).
+  assert.equal(adsCalls, 4);
   assert.deepEqual(res.ads, []);
   assert.deepEqual(res.advertisers, []);
 });
@@ -403,6 +404,81 @@ test('search() is empty, not unavailable, when only the text search is down and 
   assert.equal(res.message, "No Bing ads point to pupilkarma.pl (searched advertisers: Pupil Karma, pupilkarma, pupilkarma.pl; Microsoft's ad text search is down)");
   assert.deepEqual(res.ads, []);
   assert.deepEqual(res.advertisers, []);
+});
+
+test('search() never retries a 500 on the text search and runs the advertiser fallback', async () => {
+  const urls = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      urls.push(url);
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      return fakeResponse('', 500);
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(urls.filter((u) => u.includes('/Ads?searchText=')).length, 1);
+  assert.ok(urls.some((u) => u.includes('/Advertisers?searchText=drmalou&')));
+  assert.ok(urls.some((u) => u.includes('/Advertisers?searchText=drmalou.com&')));
+  assert.equal(res.status, 'empty');
+  assert.match(res.message, /Microsoft's ad text search is down\)$/);
+});
+
+test('search() treats a 429 on the text search as non-fatal and runs the advertiser fallback', async () => {
+  const urls = [];
+  const delays = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay(attempt) { delays.push(attempt); return 0; },
+    async fetch(url) {
+      urls.push(url);
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      return fakeResponse('<html>Too Many Requests</html>', 429);
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(urls.filter((u) => u.includes('/Ads?searchText=')).length, 3);
+  // Two 429 retries, then one cooldown before the fallback.
+  assert.deepEqual(delays, [0, 1, 1]);
+  assert.ok(urls.some((u) => u.includes('/Advertisers?searchText=drmalou&')));
+  assert.equal(res.status, 'empty');
+  assert.equal(res.message, "No Bing ads point to drmalou.com (searched advertisers: Dr Malou, drmalou, drmalou.com; Microsoft's ad text search is rate limited)");
+});
+
+test('search() keeps ads found by the fallback when the text search is rate limited', async () => {
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      if (url.includes('/Advertisers?searchText=pupilkarma&')) {
+        return fakeResponse({ value: [{ AdvertiserId: 7001, AdvertiserName: 'Pupil Karma Sp. z o.o.' }] });
+      }
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      if (url.includes('advertiserId=7001')) {
+        return fakeResponse({ '@odata.count': 1, value: [{ AdId: 9001, AdvertiserId: 7001, AdvertiserName: 'Pupil Karma Sp. z o.o.', Title: 'Karma', DestinationUrl: 'https://pupilkarma.pl/psy' }] });
+      }
+      return fakeResponse('<html>Too Many Requests</html>', 429);
+    },
+  };
+  const res = await search({ domain: 'pupilkarma.pl', brand: 'Pupil Karma' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.equal(res.message, "1 ads, 1 pointing to pupilkarma.pl, Microsoft's ad text search is rate limited, searched by advertiser");
+});
+
+test('search() is still rate_limited when the advertiser search stays 429', async () => {
+  let textCalls = 0;
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      if (url.includes('/Ads?searchText=')) { textCalls += 1; return fakeResponse({ '@odata.count': 0, value: [] }); }
+      return fakeResponse('<html>Too Many Requests</html>', 429);
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(res.status, 'rate_limited');
+  assert.equal(textCalls, 0);
 });
 
 test('search() stays unavailable when the advertiser search itself returns 500', async () => {
