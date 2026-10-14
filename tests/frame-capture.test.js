@@ -110,11 +110,14 @@ test('frame router: tab_closed then a working frame capture is remembered for 7 
   assert.equal(cap.payloads.length, 1);
   assert.deepEqual(h.calls, ['tab', 'frame']);
   assert.equal(mem.data[FRAME_MEMORY_KEY], NOW + FRAME_MEMORY_MS);
-  assert.equal(h.logs.filter((l) => l.level === 'warn').length, 1);
-  // Rest of this run: straight to the frame, no new warning.
+  // A recovered switch is one info line, not a warning.
+  const switched = () => h.logs.filter((l) => /switching to the offscreen frame/.test(l.msg));
+  assert.equal(h.logs.filter((l) => l.level === 'warn').length, 0);
+  assert.equal(switched().length, 1);
+  // Rest of this run: straight to the frame, no new line.
   await h.run();
   assert.deepEqual(h.calls, ['tab', 'frame', 'frame']);
-  assert.equal(h.logs.filter((l) => l.level === 'warn').length, 1);
+  assert.equal(switched().length, 1);
 });
 
 test('frame router: tab_closed then a failing frame capture remembers nothing', async () => {

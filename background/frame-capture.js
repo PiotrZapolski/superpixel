@@ -436,7 +436,8 @@ export function createFrameRouter({ memory, signal, now = Date.now, log = () => 
     const cap = await tabCapture();
     if (!cap || cap.error !== 'tab_closed' || (signal && signal.aborted)) return cap;
     useFrame = true;
-    log('warn', 'Capture tab closed right after loading, switching to the offscreen frame for this run');
+    // Recovered, not a failure: a failing frame capture logs its own warning.
+    log('info', 'Capture tab closed right after loading, switching to the offscreen frame for this run');
     const fcap = await frameCapture();
     await remember(fcap);
     return fcap;
