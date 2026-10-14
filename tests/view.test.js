@@ -20,6 +20,8 @@ test('statusChipText: confirmed count, else ad count, never "None"', () => {
   assert.equal(statusChipText({ status: 'empty', ads: [] }), 'No ads');
   assert.equal(statusChipText({ status: 'needs_user' }), 'Needs you');
   assert.equal(statusChipText({ status: 'rate_limited', ads }), 'Rate limited');
+  assert.equal(statusChipText({ status: 'unavailable', ads: [] }), 'Unavailable');
+  assert.equal(STATUS_LABELS.unavailable, 'Unavailable');
   assert.equal(statusChipText({ status: 'changed' }), 'Changed');
   assert.equal(statusChipText({ status: 'error' }), 'Error');
   assert.equal(statusChipText({ status: 'running' }), 'Running');
