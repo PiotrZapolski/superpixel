@@ -9,6 +9,8 @@ import {
   formatLabel,
   placementsText,
   headerDeepLinks,
+  groupAdsByFormat,
+  formatCountsText,
 } from './view.js';
 import { platformIcon, tagIcon } from './platform-icons.js';
 
@@ -716,6 +718,12 @@ function renderPlatformBody(entry, result) {
   const ads = result.ads || [];
   const advertisers = result.advertisers || [];
 
+  const shownAds = onlyConfirmed ? ads.filter((a) => a.match === 'confirmed') : ads;
+  const countsText = formatCountsText(shownAds);
+  if (countsText) {
+    refs.bodyEl.appendChild(el('p', { className: 'platform-format-counts', text: countsText }));
+  }
+
   const adsByAdvertiser = new Map();
   for (const ad of ads) {
     const key = ad.advertiserId || '';
@@ -826,9 +834,15 @@ function renderAdvertiserBlock(adv, ads, confirmedCount) {
     details.appendChild(extra);
   }
 
-  const list = el('div', { className: 'ad-list' });
-  for (const ad of ads) list.appendChild(renderAdRow(ad));
-  details.appendChild(list);
+  for (const group of groupAdsByFormat(ads)) {
+    details.appendChild(el('div', {
+      className: 'ad-format-group-title',
+      text: group.label + ' (' + group.ads.length + ')',
+    }));
+    const list = el('div', { className: 'ad-list' });
+    for (const ad of group.ads) list.appendChild(renderAdRow(ad));
+    details.appendChild(list);
+  }
 
   return details;
 }

@@ -59,6 +59,42 @@ export function formatLabel(ad) {
   return String((ad && ad.format) || '').trim();
 }
 
+export const FORMAT_GROUPS = [
+  { key: 'video', label: 'Video' },
+  { key: 'image', label: 'Images' },
+  { key: 'text', label: 'Text' },
+  { key: 'other', label: 'Other' },
+];
+
+/** Media group of an ad: 'video' | 'image' | 'text' | 'other'. */
+export function formatGroup(ad) {
+  const f = String((ad && ad.format) || '').trim().toLowerCase();
+  if (f.includes('video')) return 'video';
+  if (/image|carousel|photo|picture|banner|multi_images|dpa|dco/.test(f)) return 'image';
+  if (f === 'text' || f.includes('text')) return 'text';
+  return 'other';
+}
+
+/** Ads split by media group, in FORMAT_GROUPS order, empty groups dropped. */
+export function groupAdsByFormat(ads) {
+  const buckets = new Map(FORMAT_GROUPS.map((g) => [g.key, []]));
+  for (const ad of Array.isArray(ads) ? ads : []) buckets.get(formatGroup(ad)).push(ad);
+  return FORMAT_GROUPS
+    .map((g) => ({ key: g.key, label: g.label, ads: buckets.get(g.key) }))
+    .filter((g) => g.ads.length > 0);
+}
+
+/** @returns {string} e.g. "12 video, 30 images, 1 text", or '' for no ads */
+export function formatCountsText(ads) {
+  const parts = [];
+  for (const g of groupAdsByFormat(ads)) {
+    const n = g.ads.length;
+    if (g.key === 'image') parts.push(n + (n === 1 ? ' image' : ' images'));
+    else parts.push(n + ' ' + g.key);
+  }
+  return parts.join(', ');
+}
+
 function placementName(p) {
   const k = String(p || '').trim().toLowerCase();
   if (!k) return '';
