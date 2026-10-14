@@ -9,7 +9,55 @@ import {
   placementsText,
   deepLinkShortLabel,
   headerDeepLinks,
+  FORMAT_GROUPS,
+  formatGroup,
+  groupAdsByFormat,
+  formatCountsText,
 } from '../sidepanel/view.js';
+
+test('formatGroup maps formats to media groups', () => {
+  assert.equal(formatGroup({ format: 'video' }), 'video');
+  assert.equal(formatGroup({ format: ' Video ' }), 'video');
+  assert.equal(formatGroup({ format: 'image' }), 'image');
+  assert.equal(formatGroup({ format: 'carousel' }), 'image');
+  assert.equal(formatGroup({ format: 'dpa' }), 'image');
+  assert.equal(formatGroup({ format: 'dco' }), 'image');
+  assert.equal(formatGroup({ format: 'multi_images' }), 'image');
+  assert.equal(formatGroup({ format: 'text' }), 'text');
+  assert.equal(formatGroup({ format: '' }), 'other');
+  assert.equal(formatGroup({ format: 'unknown' }), 'other');
+  assert.equal(formatGroup({}), 'other');
+  assert.equal(formatGroup(null), 'other');
+});
+
+test('groupAdsByFormat keeps group order, drops empty groups, keeps ad order', () => {
+  const ads = [
+    { id: 1, format: 'image' },
+    { id: 2, format: 'video' },
+    { id: 3, format: 'carousel' },
+    { id: 4, format: 'unknown' },
+    { id: 5, format: 'video' },
+  ];
+  const groups = groupAdsByFormat(ads);
+  assert.deepEqual(groups.map((g) => g.key), ['video', 'image', 'other']);
+  assert.deepEqual(groups[0].ads.map((a) => a.id), [2, 5]);
+  assert.deepEqual(groups[1].ads.map((a) => a.id), [1, 3]);
+  assert.equal(groups[0].label, 'Video');
+  assert.deepEqual(groupAdsByFormat([]), []);
+  assert.equal(FORMAT_GROUPS.length, 4);
+});
+
+test('formatCountsText summarises counts per group', () => {
+  assert.equal(formatCountsText([]), '');
+  assert.equal(formatCountsText([{ format: 'image' }]), '1 image');
+  const ads = [
+    ...Array.from({ length: 12 }, () => ({ format: 'video' })),
+    ...Array.from({ length: 30 }, () => ({ format: 'image' })),
+    { format: 'text' },
+    { format: '' },
+  ];
+  assert.equal(formatCountsText(ads), '12 video, 30 images, 1 text, 1 other');
+});
 
 test('statusChipText: confirmed count, else ad count, never "None"', () => {
   const ads = [{ match: 'confirmed' }, { match: 'confirmed' }, { match: 'keyword' }];
