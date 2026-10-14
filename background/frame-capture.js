@@ -14,6 +14,7 @@
 //   (chrome.tabs.sendMessage cannot reach a frame that has no tab).
 import { logInfo, logWarn, safeUrl, errText } from './log.js';
 import { acquireMutex, waitLoop, delay, MAX_PAYLOADS_PER_TAB, LOAD_TIMEOUT_MS } from './hidden-tab.js';
+import { memGet, memSet, memRemove } from './memory.js';
 
 export const FRAME_HOST = 'library.tiktok.com';
 export const FRAME_TOKEN_PREFIX = 'superpixel-frame-';
@@ -388,4 +389,77 @@ export async function closeCaptureFrames() {
 /** True for a url the frame path can load (the TikTok Ad Library only). */
 export function frameCapable(url) {
   return hostOfUrl(url) === FRAME_HOST;
+}
+
+/** chrome.storage.local key: until when (ms) TikTok goes straight to the frame (capture tabs get closed). */
+export const FRAME_MEMORY_KEY = 'tiktokFrameUntil';
+export const FRAME_MEMORY_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** A capture (payloads) or DOM capture (text) that ended without error and brought something back. */
+export function frameCaptureWorked(cap) {
+  if (!cap || cap.error) return false;
+  return (Array.isArray(cap.payloads) && cap.payloads.length > 0) || (typeof cap.text === 'string' && cap.text.length > 0);
+}
+
+/**
+ * Per-run router between the capture tab and the offscreen frame (issue #17). Something outside
+ * Superpixel (another extension) may close every TikTok tab right after it loads:
+ * - no memory: try the tab; after the first tab_closed the rest of the run uses the frame, and
+ *   once a frame capture works that is remembered for FRAME_MEMORY_MS;
+ * - remembered: go straight to the frame (one info line per run); a frame capture that fails
+ *   (other than a user abort) forgets it and retries that request through the tab, so a removed
+ *   blocker or a broken frame heals itself.
+ * @param {{memory?:{get:Function,set:Function,remove:Function}, signal?:AbortSignal,
+ *   now?:()=>number, log?:(level:string, msg:string)=>void}} opts
+ * @returns {(url:string, tabCapture:()=>Promise<any>, frameCapture:()=>Promise<any>)=>Promise<any>}
+ */
+export function createFrameRouter({ memory, signal, now = Date.now, log = () => {} } = {}) {
+  let useFrame = false;
+  let stored = false;
+  let announced = false;
+  /** null until read once per run; then the remembered deadline (ms) or 0. */
+  let rememberedUntil = null;
+
+  const remembered = async () => {
+    if (rememberedUntil === null) {
+      const v = Number(await memGet(memory, FRAME_MEMORY_KEY));
+      rememberedUntil = Number.isFinite(v) && v > now() ? v : 0;
+    }
+    return rememberedUntil;
+  };
+  const remember = async (cap) => {
+    if (stored || !frameCaptureWorked(cap)) return;
+    stored = true;
+    await memSet(memory, FRAME_MEMORY_KEY, now() + FRAME_MEMORY_MS);
+  };
+  const viaTab = async (tabCapture, frameCapture) => {
+    const cap = await tabCapture();
+    if (!cap || cap.error !== 'tab_closed' || (signal && signal.aborted)) return cap;
+    useFrame = true;
+    log('warn', 'Capture tab closed right after loading, switching to the offscreen frame for this run');
+    const fcap = await frameCapture();
+    await remember(fcap);
+    return fcap;
+  };
+
+  return async (url, tabCapture, frameCapture) => {
+    if (!frameCapable(url) || (signal && signal.aborted)) return tabCapture();
+    if (useFrame) {
+      const cap = await frameCapture();
+      await remember(cap);
+      return cap;
+    }
+    const until = await remembered();
+    if (!until) return viaTab(tabCapture, frameCapture);
+    if (!announced) {
+      announced = true;
+      log('info', `Using the offscreen frame: capture tabs were closed by something in this browser (remembered until ${new Date(until).toISOString()})`);
+    }
+    const cap = await frameCapture();
+    if (frameCaptureWorked(cap) || (cap && cap.error === 'aborted') || (signal && signal.aborted)) return cap;
+    rememberedUntil = 0;
+    await memRemove(memory, FRAME_MEMORY_KEY);
+    log('info', `Offscreen frame capture failed (${(cap && cap.error) || 'nothing captured'}), forgetting it and trying a capture tab`);
+    return viaTab(tabCapture, frameCapture);
+  };
 }

@@ -293,6 +293,8 @@ export async function search(seeds, ctx) {
           'X-Framework-Xsrf-Token': token,
         },
         body,
+        // A 429 that will be retried is logged as info; the final attempt warns once.
+        ...(attempt < BACKOFF_MS.length ? { retryStatuses: [429] } : {}),
       });
       if (res.url && res.url.includes('/sorry/')) return { fail: { status: 'needs_user', message: captchaMsg } };
       if (res.status === 429) {

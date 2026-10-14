@@ -14,7 +14,11 @@ import {
   adsBySearchUrl,
   mergeAdvertiserLists,
   ADS_TOP,
+  TEXT_DOWN_KEY,
+  TEXT_DOWN_MS,
+  MAX_429_RETRIES,
 } from '../adapters/bing.js';
+import { logHttpStatus, onEntry } from '../background/log.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const ADVERTISERS = JSON.parse(fixture('bing-advertisers.json'));
@@ -523,4 +527,174 @@ test('search() still ends as error on a non-5xx HTTP error such as 400', async (
   assert.equal(res.status, 'error');
   assert.equal(res.message, 'Microsoft Ad Library returned HTTP 400');
   assert.equal(calls, 2);
+});
+
+function fakeMemory(initial = {}) {
+  const data = { ...initial };
+  return {
+    data,
+    async get(k) { return data[k]; },
+    async set(k, v) { data[k] = v; },
+    async remove(k) { delete data[k]; },
+  };
+}
+
+test('search() text search 500 sets the breaker for an hour and is sent as an expected failure', async () => {
+  const memory = fakeMemory();
+  const inits = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    memory,
+    async fetch(url, init) {
+      inits.push({ url, expectedFailure: !!(init && init.expectedFailure) });
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      return fakeResponse('', 500);
+    },
+  };
+  const before = Date.now();
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(res.status, 'empty');
+  assert.ok(memory.data[TEXT_DOWN_KEY] >= before + TEXT_DOWN_MS);
+  assert.ok(memory.data[TEXT_DOWN_KEY] <= Date.now() + TEXT_DOWN_MS);
+  // Only the text search tolerates failure; advertiser searches keep their warnings.
+  assert.deepEqual(inits.filter((i) => i.expectedFailure).map((i) => i.url.includes('/Ads?searchText=')), [true]);
+  assert.ok(inits.filter((i) => !i.url.includes('/Ads?searchText=')).every((i) => !i.expectedFailure));
+});
+
+test('search() text search 429 also sets the breaker', async () => {
+  const memory = fakeMemory();
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    memory,
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      return fakeResponse('<html>Too Many Requests</html>', 429);
+    },
+  };
+  await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.ok(memory.data[TEXT_DOWN_KEY] > Date.now());
+});
+
+test('search() skips the text search while the breaker is set, message unchanged', async () => {
+  const until = Date.now() + 30 * 60 * 1000;
+  const memory = fakeMemory({ [TEXT_DOWN_KEY]: until });
+  const urls = [];
+  const logs = [];
+  const progress = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    memory,
+    log: (level, msg) => logs.push({ level, msg }),
+    progress: (t) => progress.push(t),
+    async fetch(url) {
+      urls.push(url);
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      return fakeResponse('', 500);
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(urls.filter((u) => u.includes('/Ads?searchText=')).length, 0);
+  assert.ok(urls.some((u) => u.includes('/Advertisers?searchText=drmalou&')));
+  assert.ok(urls.some((u) => u.includes('/Advertisers?searchText=drmalou.com&')));
+  assert.equal(res.status, 'empty');
+  assert.equal(res.message, "No Bing ads point to drmalou.com (searched advertisers: Dr Malou, drmalou, drmalou.com; Microsoft's ad text search is down)");
+  assert.deepEqual(logs, [{ level: 'info', msg: 'Microsoft ad text search skipped, it failed in the last hour' }]);
+  assert.ok(progress.includes('Microsoft ad text search skipped, it failed in the last hour'));
+  assert.equal(memory.data[TEXT_DOWN_KEY], until);
+});
+
+test('logHttpStatus: an expected text search 500 is info, any other 5xx stays a warning', () => {
+  const seen = [];
+  const off = onEntry((e) => seen.push(e));
+  try {
+    logHttpStatus('bing', 500, 'https://adlibrary.api.bingads.microsoft.com/api/v1/Ads?searchText=drmalou.com&top=24', { expectedFailure: true });
+    logHttpStatus('bing', 500, 'https://adlibrary.api.bingads.microsoft.com/api/v1/Advertisers?searchText=drmalou&top=20');
+    assert.equal(logHttpStatus('bing', 200, 'https://adlibrary.api.bingads.microsoft.com/api/v1/Ads'), null);
+  } finally {
+    off();
+  }
+  assert.deepEqual(seen.map((e) => [e.level, e.msg]), [
+    ['info', 'HTTP 500 adlibrary.api.bingads.microsoft.com/api/v1/Ads (expected, handled)'],
+    ['warn', 'HTTP 500 adlibrary.api.bingads.microsoft.com/api/v1/Advertisers'],
+  ]);
+});
+
+test('logHttpStatus: a retried status is info, the final give-up warns once', () => {
+  const seen = [];
+  const off = onEntry((e) => seen.push(e));
+  try {
+    logHttpStatus('bing', 429, 'https://adlibrary.api.bingads.microsoft.com/api/v1/Advertisers?searchText=x', { retrying: true });
+    logHttpStatus('bing', 429, 'https://adlibrary.api.bingads.microsoft.com/api/v1/Advertisers?searchText=x');
+  } finally {
+    off();
+  }
+  assert.deepEqual(seen.map((e) => [e.level, e.msg]), [
+    ['info', 'HTTP 429 adlibrary.api.bingads.microsoft.com/api/v1/Advertisers (retrying)'],
+    ['warn', 'HTTP 429 adlibrary.api.bingads.microsoft.com/api/v1/Advertisers'],
+  ]);
+});
+
+test('search() marks only attempts it will retry: a recovered 429 never reaches warn level', async () => {
+  const sent = [];
+  let advCalls = 0;
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url, init) {
+      sent.push({ url, retryStatuses: init.retryStatuses || [] });
+      if (url.includes('/Advertisers?')) {
+        advCalls += 1;
+        if (advCalls === 1) return fakeResponse('<html>Too Many Requests</html>', 429);
+        return fakeResponse({ value: [] });
+      }
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  // First advertiser attempt: 429 and 5xx would be retried.
+  assert.ok(sent[0].retryStatuses.includes(429));
+  assert.ok(sent[0].retryStatuses.includes(500));
+  // Text search: no 5xx retries, so only 429 is marked.
+  const text = sent.find((s) => s.url.includes('/Ads?searchText='));
+  assert.deepEqual(text.retryStatuses, [429]);
+});
+
+test('search() final 429 attempt is not marked as retrying, so it warns', async () => {
+  const sent = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url, init) {
+      sent.push(init.retryStatuses || []);
+      return fakeResponse('<html>Too Many Requests</html>', 429);
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(res.status, 'rate_limited');
+  assert.equal(sent.length, MAX_429_RETRIES + 1);
+  assert.ok(sent[MAX_429_RETRIES - 1].includes(429));
+  assert.ok(!sent[MAX_429_RETRIES].includes(429));
+});
+
+test('search() clears an expired breaker when the text search answers again', async () => {
+  const memory = fakeMemory({ [TEXT_DOWN_KEY]: Date.now() - 1 });
+  const urls = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    memory,
+    async fetch(url) {
+      urls.push(url);
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(urls.filter((u) => u.includes('/Ads?searchText=')).length, 1);
+  assert.equal(TEXT_DOWN_KEY in memory.data, false);
+  assert.equal(res.status, 'empty');
+  assert.equal(res.message, 'No Bing ads point to drmalou.com (searched: Dr Malou)');
 });
