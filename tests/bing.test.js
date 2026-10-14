@@ -343,16 +343,86 @@ test('search() keeps confirmed ads when one query fails with 500, adding a note'
   };
   const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
   assert.equal(res.status, 'ok');
-  assert.match(res.message, /, some Microsoft searches failed on Microsoft's side$/);
+  assert.match(res.message, /, Microsoft's ad text search is down, searched by advertiser$/);
   assert.deepEqual(res.ads.map((a) => a.id).sort(), ['5001', '5002']);
 });
 
-test('search() treats a fetch timeout on one query as unavailable, not a failed adapter', async () => {
+test('search() keeps the failure note when an ads-by-advertiser call fails with 500', async () => {
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) return fakeResponse(ADVERTISERS);
+      if (url.includes('advertiserId=1001')) return fakeResponse(ADS);
+      if (url.includes('advertiserId=1002')) return fakeResponse('', 500);
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.match(res.message, /, some Microsoft searches failed on Microsoft's side$/);
+});
+
+test('search() falls back to an advertiser search for the domain label when the text search is down', async () => {
+  const urls = [];
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch(url) {
+      urls.push(url);
+      if (url.includes('/Advertisers?searchText=pupilkarma&')) {
+        return fakeResponse({ value: [{ AdvertiserId: 7001, AdvertiserName: 'Pupil Karma Sp. z o.o.', AdvertiserCountry: 'Poland' }] });
+      }
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      if (url.includes('advertiserId=7001')) {
+        return fakeResponse({ '@odata.count': 1, value: [{ AdId: 9001, AdvertiserId: 7001, AdvertiserName: 'Pupil Karma Sp. z o.o.', Title: 'Karma dla psa', DestinationUrl: 'https://pupilkarma.pl/psy' }] });
+      }
+      if (url.includes('searchText=')) return fakeResponse('', 500);
+      return fakeResponse({ '@odata.count': 0, value: [] });
+    },
+  };
+  const res = await search({ domain: 'pupilkarma.pl', brand: 'Pupil Karma' }, ctx);
+  assert.equal(res.status, 'ok');
+  assert.equal(res.message, "1 ads, 1 pointing to pupilkarma.pl, Microsoft's ad text search is down, searched by advertiser");
+  assert.deepEqual(res.ads.map((a) => a.id), ['9001']);
+  assert.ok(urls.some((u) => u.includes('/Advertisers?searchText=pupilkarma.pl&')));
+  assert.equal(urls.filter((u) => u.includes('advertiserId=7001')).length, 1);
+});
+
+test('search() is empty, not unavailable, when only the text search is down and nothing is found', async () => {
   const ctx = {
     settings: { bingAdvertisers: 6 },
     retryDelay: () => 0,
     async fetch(url) {
       if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      return fakeResponse('', 500);
+    },
+  };
+  const res = await search({ domain: 'pupilkarma.pl', brand: 'Pupil Karma' }, ctx);
+  assert.equal(res.status, 'empty');
+  assert.equal(res.message, "No Bing ads point to pupilkarma.pl (searched advertisers: Pupil Karma, pupilkarma, pupilkarma.pl; Microsoft's ad text search is down)");
+  assert.deepEqual(res.ads, []);
+  assert.deepEqual(res.advertisers, []);
+});
+
+test('search() stays unavailable when the advertiser search itself returns 500', async () => {
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch() {
+      return fakeResponse('', 500);
+    },
+  };
+  const res = await search({ domain: 'pupilkarma.pl', brand: 'Pupil Karma' }, ctx);
+  assert.equal(res.status, 'unavailable');
+  assert.equal(res.message, "Microsoft Ad Library is not responding on Microsoft's side (HTTP 500), try again later");
+});
+
+test('search() treats a fetch timeout as unavailable, not a failed adapter', async () => {
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    async fetch() {
       const err = new Error('The operation timed out.');
       err.name = 'TimeoutError';
       throw err;
