@@ -163,6 +163,15 @@ test('search() maps auth wall to needs_user', async () => {
   assert.equal(res.status, 'needs_user');
 });
 
+test('search() maps HTTP 403 to needs_user', async () => {
+  const ctx = {
+    settings: {},
+    async fetch() { return fakeResponse('', { status: 403, url: 'https://www.linkedin.com/ad-library/search' }); },
+  };
+  const res = await search({ domain: 'decathlon.com', brand: 'Decathlon', social: { linkedin: [] } }, ctx);
+  assert.equal(res.status, 'needs_user');
+});
+
 test('search() reports changed for unrecognised HTML', async () => {
   const ctx = {
     settings: { linkedinPages: 1 },

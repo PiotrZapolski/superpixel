@@ -362,6 +362,7 @@ async function getHtml(ctx, url) {
     const res = await ctx.fetch(url, { credentials: 'omit', ...(attempt < 3 ? { retryStatuses: [429, 999] } : {}) });
     const finalUrl = String(res.url || url);
     if (/authwall|\/login|\/uas\/login|\/checkpoint/i.test(finalUrl)) return { authwall: true };
+    if (res.status === 403) return { authwall: true };
     if (res.status === 429 || res.status === 999) {
       if (attempt >= 3) return { rateLimited: true };
       await sleep(retryDelay(attempt), ctx.signal);
