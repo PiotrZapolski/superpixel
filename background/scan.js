@@ -244,7 +244,8 @@ function buildCtx(adapter, settings, emit, signal, stats) {
     signal,
     memory: storageMemory,
     // init.expectedFailure: the adapter handles a non-2xx answer of this request as a known
-    // outage (Bing text search, issue #36), so it is logged as info, not as a warning.
+    // outage (Bing text search, issue #36), so it is logged as info, not as a warning. An array
+    // limits that to those statuses (Snap's final 429 ends as rate_limited, issue #47).
     // init.retryStatuses: statuses this attempt will retry (429, 5xx): logged as info; the last
     // attempt omits them, so a request that finally gives up still warns once.
     fetch: async (url, init = {}) => {
@@ -260,7 +261,8 @@ function buildCtx(adapter, settings, emit, signal, stats) {
       // Never log query strings: they can carry the SearchAPI key.
       if (res) {
         const retrying = Array.isArray(retryStatuses) && retryStatuses.includes(res.status);
-        logHttpStatus(id, res.status, url, { expectedFailure: !!expectedFailure, retrying });
+        const expected = Array.isArray(expectedFailure) ? expectedFailure.includes(res.status) : !!expectedFailure;
+        logHttpStatus(id, res.status, url, { expectedFailure: expected, retrying });
       }
       return res;
     },
@@ -377,7 +379,9 @@ async function runAdapter(adapter, seeds, settings, domain, force, emit, signal)
   };
 
   const finishMsg = `Adapter finish: ${result.status}, ${result.ads.length} ads, ${result.stats.requests} requests, ${result.stats.ms}ms${result.message ? ` - ${result.message}` : ''}`;
-  if (result.status === 'error' || result.status === 'changed') logWarn(meta.id, finishMsg);
+  // A user Stop aborts adapters with status error: that is not a failure (issue #47).
+  const stoppedByUser = !!(signal && signal.aborted);
+  if (!stoppedByUser && (result.status === 'error' || result.status === 'changed')) logWarn(meta.id, finishMsg);
   else logInfo(meta.id, finishMsg);
 
   if (!(signal && signal.aborted) && CACHEABLE_STATUSES.has(result.status)) {
