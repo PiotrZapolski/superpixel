@@ -188,14 +188,16 @@ test('search() gives up after 4 retries with rate_limited, keeping the return sh
   const ctx = {
     settings: {},
     log: (level, msg) => logs.push({ level, msg }),
-    async fetch(url, init) { n += 1; retry.push(init.retryStatuses || null); return rateLimitResponse('0'); },
+    async fetch(url, init) { n += 1; retry.push(init.retryStatuses || null); expected.push(init.expectedFailure || null); return rateLimitResponse('0'); },
   };
   const retry = [];
+  const expected = [];
   const res = await search({ domain: 'x.com', brand: 'Acme' }, ctx);
   assert.equal(res.status, 'rate_limited');
   assert.equal(n, 5);
-  // Attempts 1-4 will be retried (info in the fetch wrapper); the 5th gives up and warns there.
+  // Attempts 1-4 will be retried, the 5th gives up as an expected 429: all info in the fetch wrapper.
   assert.deepEqual(retry, [[429], [429], [429], [429], null]);
+  assert.deepEqual(expected, [null, null, null, null, [429]]);
   assert.ok(logs.every((l) => l.level === 'info'));
   assert.deepEqual(logs.map((l) => l.msg.split(', body')[0]), [
     '429 attempt 1, retry-after 0, waiting 0ms',

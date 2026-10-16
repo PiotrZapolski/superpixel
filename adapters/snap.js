@@ -154,8 +154,9 @@ async function postSearch(ctx, url, body) {
       credentials: 'omit',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(body),
-      // A 429 that will be retried is logged as info; the final attempt warns once.
-      ...(attempt < RETRY_MS.length ? { retryStatuses: [429] } : {}),
+      // A 429 that will be retried is logged as info; the final one ends as rate_limited, so it
+      // is expected and info too (issue #47). Other statuses still warn.
+      ...(attempt < RETRY_MS.length ? { retryStatuses: [429] } : { expectedFailure: [429] }),
     });
     if (res.status === 429) {
       const retryAfter = headerValue(res, 'retry-after');
@@ -164,7 +165,7 @@ async function postSearch(ctx, url, body) {
       const waitMs = retryAfterMs(retryAfter, RETRY_MS[attempt]);
       const last = attempt >= RETRY_MS.length;
       try {
-        // Diagnostics only: the give-up warning is the fetch wrapper's "HTTP 429" line.
+        // Diagnostics only: the platform result reports the rate limit.
         if (ctx.log) ctx.log('info', `429 attempt ${attempt + 1}, retry-after ${retryAfter || '-'}, ${last ? 'giving up' : `waiting ${waitMs}ms`}, body: ${snippet}`);
       } catch { /* logging must never break the scan */ }
       if (last) return { rateLimited: true };
