@@ -1,14 +1,29 @@
-name: Test
+name: Full tests
 
+# Pelny zestaw. Wolany z ci.yml (PR) i przez kolejke merge (ref = sha albo galaz).
 on:
-  push:
-  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Sha albo galaz do przetestowania (puste = domyslny ref zdarzenia).'
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Sha albo galaz do przetestowania (puste = domyslny ref).'
+        type: string
+        required: false
+        default: ''
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -32,6 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-python@v5
         with:

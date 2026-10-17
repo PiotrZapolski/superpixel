@@ -1,0 +1,14 @@
+name: CI
+
+# Szybki pas na PR = pelny zestaw z full-tests.yml (sekundy). Bez paths-ignore:
+# krok "No dash glyphs" sprawdza tez pliki .md. Push na master nie powtarza testow.
+on:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    uses: ./.github/workflows/full-tests.yml
