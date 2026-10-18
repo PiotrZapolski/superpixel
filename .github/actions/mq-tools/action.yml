@@ -1,0 +1,35 @@
+# gh and jq for the merge queue (second_brain#59). Self-hosted runners on the prod box
+# have neither; a missing tool comes from its official release (pinned version, sha256
+# checked against the release checksums) into $RUNNER_TEMP and onto GITHUB_PATH.
+name: mq-tools
+description: Make sure gh and jq are on PATH
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_VERSION: '2.102.0'
+        JQ_VERSION: '1.8.2'
+      run: |
+        set -euo pipefail
+        bin="$RUNNER_TEMP/mq-bin"
+        mkdir -p "$bin"
+        cd "$RUNNER_TEMP"
+        if ! command -v gh > /dev/null; then
+          tar="gh_${GH_VERSION}_linux_amd64.tar.gz"
+          base="https://github.com/cli/cli/releases/download/v${GH_VERSION}"
+          curl -fsSLO "$base/$tar"
+          curl -fsSL "$base/gh_${GH_VERSION}_checksums.txt" | grep " $tar\$" | sha256sum -c -
+          tar -xzf "$tar"
+          mv "gh_${GH_VERSION}_linux_amd64/bin/gh" "$bin/gh"
+        fi
+        if ! command -v jq > /dev/null; then
+          base="https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}"
+          curl -fsSLO "$base/jq-linux-amd64"
+          curl -fsSL "$base/sha256sum.txt" | grep " jq-linux-amd64\$" | sha256sum -c -
+          install -m 755 jq-linux-amd64 "$bin/jq"
+        fi
+        echo "$bin" >> "$GITHUB_PATH"
+        PATH="$bin:$PATH"
+        gh --version | head -1
+        jq --version

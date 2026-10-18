@@ -1,0 +1,151 @@
+# Merge queue, step 1 of 3 (second_brain#59, board/_shared/ci-standard.md point 3).
+# Called from a repo's thin merge-queue.yml (template: infra/ci/merge-queue.yml).
+# Takes every open PR into master with the `queue` label, merges them one by one
+# (merge commit) onto a temporary branch mq/<run> cut from master and pushes it,
+# so the caller can run its full-tests.yml once on the whole batch.
+# Dropped from the batch with a comment and the label removed: a conflict with the
+# batch, a change in .github/workflows (GITHUB_TOKEN cannot push those), a fork PR.
+# Skipped, label kept: a draft and a PR with red fast CI.
+name: mq-prepare
+
+on:
+  workflow_call:
+    inputs:
+      base:
+        type: string
+        default: master
+      label:
+        type: string
+        default: queue
+      runs-on:
+        description: 'Runner as JSON, e.g. "ubuntu-latest" or ["self-hosted","justrank"]'
+        type: string
+        default: '"ubuntu-latest"'
+    outputs:
+      count:
+        description: Number of PRs in the batch (0 = nothing to test)
+        value: ${{ jobs.prepare.outputs.count }}
+      branch:
+        value: ${{ jobs.prepare.outputs.branch }}
+      sha:
+        description: Head of the batch branch, the ref for full-tests.yml
+        value: ${{ jobs.prepare.outputs.sha }}
+      prs:
+        description: JSON array of PR numbers in merge order
+        value: ${{ jobs.prepare.outputs.prs }}
+      heads:
+        description: JSON array of the PR head shas that went in
+        value: ${{ jobs.prepare.outputs.heads }}
+      commits:
+        description: JSON array, the batch commit after each PR (prefix k = commits[k-1])
+        value: ${{ jobs.prepare.outputs.commits }}
+
+jobs:
+  prepare:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 10
+    outputs:
+      count: ${{ steps.batch.outputs.count }}
+      branch: ${{ steps.batch.outputs.branch }}
+      sha: ${{ steps.batch.outputs.sha }}
+      prs: ${{ steps.batch.outputs.prs }}
+      heads: ${{ steps.batch.outputs.heads }}
+      commits: ${{ steps.batch.outputs.commits }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.base }}
+          fetch-depth: 0
+
+      - uses: ./.github/actions/mq-tools
+
+      - id: batch
+        name: Build the batch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE: ${{ inputs.base }}
+          LABEL: ${{ inputs.label }}
+          SELF: ${{ github.workflow }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898283+github-actions[bot]@users.noreply.github.com'
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          say() { echo "$*"; echo "- $*" >> "$GITHUB_STEP_SUMMARY"; }
+          unlabel() { # PR; a label already gone is fine, any other error fails the job
+            local err
+            if ! err=$(gh api -X DELETE "repos/$GH_REPO/issues/$1/labels/$LABEL" 2>&1 > /dev/null); then
+              grep -q 'Label does not exist' <<< "$err" || { echo "$err" >&2; return 1; }
+            fi
+          }
+          drop() { # PR, reason: label off + comment
+            unlabel "$1"
+            gh api "repos/$GH_REPO/issues/$1/comments" -f body="Kolejka merge: $2 Etykieta \`$LABEL\` zdjęta, po poprawce dodaj ją ponownie. Przebieg: $run_url" > /dev/null
+            say "#$1 wypada z kolejki: $2"
+          }
+
+          # One queue run per repo at a time (concurrency), so any mq/* branch is a leftover.
+          # Every $(...) is assigned on its own line: set -e does not see a failed
+          # substitution inside a for list, a [ ] test or an echo argument.
+          leftovers=$(git ls-remote --heads origin 'mq/*' | awk '{print $2}')
+          for ref in $leftovers; do git push -q origin --delete "$ref"; done
+
+          base_sha=$(git rev-parse HEAD)
+          branch="mq/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git checkout -q -B "$branch" "$base_sha"
+          echo "## Partia na $BASE @ ${base_sha:0:7}" >> "$GITHUB_STEP_SUMMARY"
+
+          prs=(); heads=(); commits=()
+          queued=$(gh pr list --base "$BASE" --label "$LABEL" --state open --limit 100 --json number --jq '.[].number')
+          queued=$(sort -n <<< "$queued")
+          say "Z etykietą $LABEL: ${queued//$'\n'/ }"
+          for n in $queued; do
+            pr=$(gh pr view "$n" --json isDraft,isCrossRepository,headRefOid,headRefName,title,statusCheckRollup)
+            draft=$(jq -r .isDraft <<< "$pr")
+            fork=$(jq -r .isCrossRepository <<< "$pr")
+            head=$(jq -r .headRefOid <<< "$pr")
+            head_ref=$(jq -r .headRefName <<< "$pr")
+            title=$(jq -r .title <<< "$pr")
+            if [ "$draft" = true ]; then say "#$n pominięty: draft"; continue; fi
+            if [ "$fork" = true ]; then drop "$n" "PR z forka, kolejka bierze tylko gałęzie tego repo."; continue; fi
+            red=$(jq -r --arg self "$SELF" '[.statusCheckRollup[]
+              | select((.workflowName // "") != $self)
+              | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "STARTUP_FAILURE"
+                  or .conclusion == "ACTION_REQUIRED" or .state == "FAILURE" or .state == "ERROR")
+              | (.name // .context)] | unique | join(", ")' <<< "$pr")
+            if [ -n "$red" ]; then say "#$n pominięty: czerwone CI ($red), etykieta zostaje"; continue; fi
+
+            git fetch -q origin "$head" || git fetch -q origin "refs/pull/$n/head"
+            changed=$(git diff --name-only "$base_sha...$head")
+            if grep -q '^\.github/workflows/' <<< "$changed"; then
+              drop "$n" "PR zmienia .github/workflows, a GITHUB_TOKEN nie może wypchnąć takich zmian. Merge ręcznie po review."
+              continue
+            fi
+            if git merge -q --no-ff --no-edit -m "Merge pull request #$n from $head_ref" -m "$title" "$head"; then
+              commit=$(git rev-parse HEAD)
+              prs+=("$n"); heads+=("$head"); commits+=("$commit")
+              say "#$n w partii"
+            else
+              git merge --abort
+              drop "$n" "konflikt z master albo z PR-ami wcześniej w partii (${prs[*]/#/#}). Zrób rebase na $BASE."
+            fi
+          done
+
+          json() { if [ $# -eq 0 ]; then echo '[]'; else printf '%s\n' "$@" | jq -R . | jq -cs .; fi; }
+          prs_json=$(json "${prs[@]}" | jq -c 'map(tonumber)')
+          heads_json=$(json "${heads[@]}")
+          commits_json=$(json "${commits[@]}")
+          {
+            echo "count=${#prs[@]}"
+            echo "branch=$branch"
+            echo "prs=$prs_json"
+            echo "heads=$heads_json"
+            echo "commits=$commits_json"
+          } >> "$GITHUB_OUTPUT"
+          if [ ${#prs[@]} -eq 0 ]; then say "Pusta partia, nic do testu."; exit 0; fi
+
+          git push -q origin "HEAD:refs/heads/$branch"
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          say "Partia ${#prs[@]} PR na $branch @ ${sha:0:7}"

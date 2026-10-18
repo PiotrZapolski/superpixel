@@ -1,0 +1,209 @@
+# Merge queue, step 3 of 3 (second_brain#59). Called after the caller ran its
+# full-tests.yml on the batch from mq-prepare.yml.
+# Green: master is fast-forwarded to the tested batch commit (exactly the tree that
+# passed; GitHub marks the PRs merged), then the deploy workflows are dispatched on
+# master (a push by GITHUB_TOKEN triggers no `push` workflow).
+# Red: binary search over batch prefixes (full-tests.yml by workflow_dispatch on a
+# prefix branch) finds the first PR that breaks; the green prefix before it is merged,
+# the culprit loses the label with a comment and a log link, the PRs after it go to
+# the next queue run (dispatched here).
+# dry-run: everything except the push to master and the dispatches (deploy, next run).
+name: mq-finish
+
+on:
+  workflow_call:
+    inputs:
+      base:
+        type: string
+        default: master
+      label:
+        type: string
+        default: queue
+      branch:
+        type: string
+        required: true
+      prs:
+        type: string
+        required: true
+      heads:
+        type: string
+        required: true
+      commits:
+        type: string
+        required: true
+      tests:
+        description: Result of the full-tests job on the whole batch (success, failure, cancelled, skipped)
+        type: string
+        required: true
+      deploy:
+        description: Deploy workflow files dispatched on master after a merge, space separated
+        type: string
+        default: ''
+      full-tests:
+        type: string
+        default: full-tests.yml
+      queue-workflow:
+        description: The caller's file, dispatched again when PRs are left for the next batch
+        type: string
+        default: merge-queue.yml
+      dry-run:
+        type: boolean
+        default: false
+      test-timeout:
+        description: Minutes to wait for one bisect run of full-tests
+        type: number
+        default: 30
+      runs-on:
+        type: string
+        default: '"ubuntu-latest"'
+
+jobs:
+  finish:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.base }}
+          fetch-depth: 0
+
+      - uses: ./.github/actions/mq-tools
+
+      - name: Merge, bisect, deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE: ${{ inputs.base }}
+          LABEL: ${{ inputs.label }}
+          BRANCH: ${{ inputs.branch }}
+          PRS: ${{ inputs.prs }}
+          PR_HEADS: ${{ inputs.heads }}
+          BATCH_COMMITS: ${{ inputs.commits }}
+          TESTS: ${{ inputs.tests }}
+          DEPLOY: ${{ inputs.deploy }}
+          FULL_TESTS: ${{ inputs.full-tests }}
+          QUEUE_WORKFLOW: ${{ inputs.queue-workflow }}
+          DRY: ${{ inputs.dry-run }}
+          TEST_TIMEOUT: ${{ inputs.test-timeout }}
+        run: |
+          set -euo pipefail
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          say() { echo "$*"; echo "- $*" >> "$GITHUB_STEP_SUMMARY"; }
+          act() { if [ "$DRY" = true ]; then say "[dry-run] pominięte: $*"; else "$@"; fi; }
+          unlabel() { # PR; a label already gone is fine, any other error fails the job
+            local err
+            if ! err=$(gh api -X DELETE "repos/$GH_REPO/issues/$1/labels/$LABEL" 2>&1 > /dev/null); then
+              grep -q 'Label does not exist' <<< "$err" || { echo "$err" >&2; return 1; }
+            fi
+          }
+          # Every $(...) is assigned on its own line (set -e misses a failed substitution
+          # in a < <(...), a case word or an argument); test_prefix runs where set -e is
+          # off, so each of its calls returns 2 on error by hand.
+          list=$(jq -r '.[]' <<< "$PRS"); mapfile -t prs <<< "$list"
+          list=$(jq -r '.[]' <<< "$PR_HEADS"); mapfile -t heads <<< "$list"
+          list=$(jq -r '.[]' <<< "$BATCH_COMMITS"); mapfile -t commits <<< "$list"
+          n=${#prs[@]}
+          if [ -z "${prs[0]}" ] || [ "$n" -ne "${#heads[@]}" ] || [ "$n" -ne "${#commits[@]}" ]; then
+            echo "::error::niespójne wejście partii: prs=$PRS heads=$PR_HEADS commits=$BATCH_COMMITS"; exit 1
+          fi
+          git fetch -q origin "refs/heads/$BRANCH"
+          echo "## Wynik kolejki (pełne testy partii: $TESTS)" >> "$GITHUB_STEP_SUMMARY"
+
+          # Full tests on batch prefix k (PRs 1..k): 0 green, 1 red, 2 no verdict. Sets last_url.
+          test_prefix() {
+            local k=$1 ref="$BRANCH-p$1" sha=${commits[$1-1]} id=""
+            git push -q origin "$sha:refs/heads/$ref" || return 2
+            gh workflow run "$FULL_TESTS" --ref "$ref" -f ref="$sha" || return 2
+            for _ in $(seq 1 24); do
+              sleep 5
+              id=$(gh run list --workflow "$FULL_TESTS" --branch "$ref" --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty') || return 2
+              [ -n "$id" ] && break
+            done
+            if [ -z "$id" ]; then echo "::error::brak przebiegu $FULL_TESTS na $ref"; return 2; fi
+            last_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id"
+            say "Bisekcja: PR 1..$k (${prs[*]:0:$k}) testuje $last_url"
+            timeout "${TEST_TIMEOUT}m" gh run watch "$id" --interval 30 > /dev/null || { echo "::error::$FULL_TESTS na $ref nie skończył się w ${TEST_TIMEOUT} min"; return 2; }
+            conclusion=$(gh run view "$id" --json conclusion --jq .conclusion) || return 2
+            case "$conclusion" in
+              success) return 0 ;;
+              failure) return 1 ;;
+              *) return 2 ;;
+            esac
+          }
+
+          merge_to=0; again=false; failed=false
+          case "$TESTS" in
+            success) merge_to=$n ;;
+            failure)
+              lo=0; hi=$n; red_url=$run_url; verdict=true
+              while [ $((hi - lo)) -gt 1 ]; do
+                mid=$(((lo + hi) / 2)); rc=0
+                test_prefix "$mid" || rc=$?
+                case $rc in
+                  0) lo=$mid ;;
+                  1) hi=$mid; red_url=$last_url ;;
+                  *) verdict=false; break ;;
+                esac
+              done
+              if [ "$verdict" = true ]; then
+                culprit=${prs[$hi-1]}
+                before=""; [ "$hi" -gt 1 ] && before=" (razem z PR-ami przed nim w partii: $(printf '#%s ' "${prs[@]:0:$hi-1}"))"
+                unlabel "$culprit"
+                gh api "repos/$GH_REPO/issues/$culprit/comments" -f body="Kolejka merge: pełne testy padają po dołączeniu tego PR do $BASE$before. Log: $red_url. Etykieta \`$LABEL\` zdjęta, po poprawce dodaj ją ponownie." > /dev/null
+                say "#$culprit psuje pełne testy ($red_url), etykieta zdjęta"
+                merge_to=$lo
+                [ "$hi" -lt "$n" ] && again=true && say "Do następnej partii: $(printf '#%s ' "${prs[@]:$hi}")"
+              else
+                say "Bisekcja bez werdyktu (błąd gh, timeout albo anulowany przebieg). Nic nie zmergowane, etykiety zostają."
+                failed=true
+              fi
+              ;;
+            *) say "Pełne testy: $TESTS. Nic nie zmergowane, etykiety zostają."; failed=true ;;
+          esac
+
+          merged=false
+          if [ "$merge_to" -gt 0 ]; then
+            # The PRs must still be what was tested: open, labelled, same head.
+            for i in $(seq 0 $((merge_to - 1))); do
+              now=$(gh pr view "${prs[$i]}" --json state,headRefOid,labels --jq '"\(.state) \(.headRefOid) \(any(.labels[]; .name == env.LABEL))"')
+              if [ "$now" != "OPEN ${heads[$i]} true" ]; then
+                say "#${prs[$i]} zmienił się od testu ($now). Partia wraca do kolejki."
+                merge_to=0; again=true; break
+              fi
+            done
+          fi
+          if [ "$merge_to" -gt 0 ]; then
+            target=${commits[$merge_to-1]}
+            list=$(printf '#%s ' "${prs[@]:0:$merge_to}")
+            # A rejected push means master moved; any other git error fails the job.
+            if [ "$DRY" = true ]; then
+              say "[dry-run] pominięte: $BASE -> ${target:0:7} (merge $list)"
+            elif out=$(git push origin "$target:refs/heads/$BASE" 2>&1); then
+              merged=true; say "Zmergowane do $BASE @ ${target:0:7}: $list"
+            elif grep -q 'rejected' <<< "$out"; then
+              say "$BASE przesunął się w trakcie testów. Partia wraca do kolejki."; again=true
+            else
+              echo "$out" >&2; exit 1
+            fi
+          fi
+
+          if [ "$merged" = true ] || { [ "$DRY" = true ] && [ "$merge_to" -gt 0 ]; }; then
+            for workflow in $DEPLOY; do
+              act gh workflow run "$workflow" --ref "$BASE"
+              say "Deploy: $workflow na $BASE"
+            done
+          fi
+          if [ "$again" = true ]; then
+            act gh workflow run "$QUEUE_WORKFLOW" --ref "$BASE"
+            say "Następny przebieg kolejki: $QUEUE_WORKFLOW"
+          fi
+          if [ "$failed" = true ]; then exit 1; fi
+
+      - name: Delete the batch branches
+        if: always()
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          refs=$(git ls-remote --heads origin "$BRANCH" "$BRANCH-p*" | awk '{print $2}')
+          for ref in $refs; do git push -q origin --delete "$ref"; done
