@@ -30,7 +30,7 @@ permissions:
 jobs:
   prepare:
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'queue'
-    uses: PiotrZapolski/second_brain/.github/workflows/mq-prepare.yml@master
+    uses: ./.github/workflows/mq-prepare.yml
 
   test:
     needs: prepare
@@ -43,7 +43,7 @@ jobs:
   finish:
     needs: [prepare, test]
     if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.count != '0'
-    uses: PiotrZapolski/second_brain/.github/workflows/mq-finish.yml@master
+    uses: ./.github/workflows/mq-finish.yml
     with:
       branch: ${{ needs.prepare.outputs.branch }}
       prs: ${{ needs.prepare.outputs.prs }}
