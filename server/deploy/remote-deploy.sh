@@ -2,7 +2,7 @@
 # Pull-based deploy, runs on the prod box as root.
 # Triggered every 2 minutes by the systemd timer superpixel-deploy.timer
 # (service: superpixel-deploy.service); it may also be run by hand.
-# It fetches origin/main, and rebuilds the container only when server/ changed
+# It fetches origin/master, and rebuilds the container only when server/ changed
 # or the container is not running and healthy.
 #
 # Everything lives in main() so bash parses the whole script before running it;
@@ -14,11 +14,11 @@ main() {
     local container=superpixel-log
 
     cd "$repo"
-    git fetch --quiet origin main
+    git fetch --quiet origin master
 
     local old new
     old=$(git rev-parse HEAD)
-    new=$(git rev-parse origin/main)
+    new=$(git rev-parse origin/master)
 
     container_status() {
         docker inspect -f '{{if .State.Running}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{else}}stopped{{end}}' "$container" 2>/dev/null || echo missing
@@ -28,7 +28,7 @@ main() {
         exit 0
     fi
 
-    git reset --hard origin/main
+    git reset --hard origin/master
 
     if [ "$old" != "$new" ] && git diff --quiet "$old" "$new" -- server/ && [ "$(container_status)" = "healthy" ]; then
         echo "no server changes"

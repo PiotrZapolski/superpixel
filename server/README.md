@@ -98,8 +98,8 @@ docker exec superpixel-log python triage.py --hours 26
 
 ## Deploy
 
-Deploy = push to `main`. The prod box polls every 2 minutes (systemd timer
-`superpixel-deploy.timer`, as root): `server/deploy/remote-deploy.sh` fetches `origin/main`, resets
+Deploy = push to `master`. The prod box polls every 2 minutes (systemd timer
+`superpixel-deploy.timer`, as root): `server/deploy/remote-deploy.sh` fetches `origin/master`, resets
 to it, and rebuilds and restarts the container only when `server/` changed or the container is not
 running and healthy. It then waits for the container to report healthy.
 
