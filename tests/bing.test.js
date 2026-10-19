@@ -679,6 +679,26 @@ test('search() final 429 attempt is not marked as retrying, so it warns', async 
   assert.ok(!sent[MAX_429_RETRIES].includes(429));
 });
 
+test('search() treats a timeout thrown by ctx.fetch on the text search as textServerError (empty, circuit breaker set)', async () => {
+  const memory = fakeMemory();
+  const before = Date.now();
+  const ctx = {
+    settings: { bingAdvertisers: 6 },
+    retryDelay: () => 0,
+    memory,
+    async fetch(url) {
+      if (url.includes('/Advertisers?')) return fakeResponse({ value: [] });
+      const err = new Error('signal timed out');
+      err.name = 'TimeoutError';
+      throw err;
+    },
+  };
+  const res = await search({ domain: 'drmalou.com', brand: 'Dr Malou' }, ctx);
+  assert.equal(res.status, 'empty');
+  assert.match(res.message, /Microsoft's ad text search is down/);
+  assert.ok(memory.data[TEXT_DOWN_KEY] >= before + TEXT_DOWN_MS);
+});
+
 test('search() clears an expired breaker when the text search answers again', async () => {
   const memory = fakeMemory({ [TEXT_DOWN_KEY]: Date.now() - 1 });
   const urls = [];

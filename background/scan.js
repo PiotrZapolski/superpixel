@@ -255,7 +255,10 @@ function buildCtx(adapter, settings, emit, signal, stats) {
       try {
         res = await fetch(url, { credentials: 'include', ...rest, signal: rest.signal || fetchSignal(signal) });
       } catch (e) {
-        if (!(signal && signal.aborted)) logWarn(id, `Fetch failed ${safeUrl(url)}: ${errText(e)}`);
+        if (!(signal && signal.aborted)) {
+          if (expectedFailure === true) logInfo(id, `Fetch failed ${safeUrl(url)}: ${errText(e)} (expected, handled)`);
+          else logWarn(id, `Fetch failed ${safeUrl(url)}: ${errText(e)}`);
+        }
         throw e;
       }
       // Never log query strings: they can carry the SearchAPI key.
