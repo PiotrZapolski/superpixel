@@ -189,8 +189,24 @@ async function windowAlive(id) {
   }
 }
 
+/**
+ * Chrome on macOS does not always honor state:'minimized' in windows.create, and a new active
+ * tab can bring the window back (issue #56), so the hidden state is re-applied on every use.
+ */
+async function keepMinimized(windowId) {
+  try {
+    const win = await chrome.windows.get(windowId);
+    if (win.state !== 'minimized') await chrome.windows.update(windowId, { state: 'minimized' });
+  } catch {
+    // window gone or state not changeable (e.g. fullscreen space)
+  }
+}
+
 async function ensureScanWindow(showScanTabs) {
-  if (await windowAlive(scanWindowId)) return scanWindowId;
+  if (await windowAlive(scanWindowId)) {
+    if (!showScanTabs) await keepMinimized(scanWindowId);
+    return scanWindowId;
+  }
   if (windowPromise) return windowPromise;
   windowPromise = (async () => {
     // The first tab is an about:blank anchor that keeps the window alive while capture tabs rotate.
@@ -201,6 +217,7 @@ async function ensureScanWindow(showScanTabs) {
     });
     scanWindowId = win.id;
     anchorTabId = win.tabs && win.tabs[0] ? win.tabs[0].id : null;
+    if (!showScanTabs) await keepMinimized(win.id);
     return win.id;
   })();
   try {
@@ -234,6 +251,7 @@ async function createTab(url, { showScanTabs = false, beforeNavigate } = {}) {
   const tab = await chrome.tabs.create({ windowId, url: blank || 'about:blank', active: true });
   captureTabs.add(tab.id);
   if (beforeNavigate) beforeNavigate(tab.id);
+  if (!showScanTabs) await keepMinimized(windowId);
   if (blank) await waitForBlank(tab.id, blank);
   await chrome.tabs.update(tab.id, { url });
   return tab.id;
