@@ -179,9 +179,11 @@ test('search() maps rate limit status without throwing', async () => {
   assert.equal(res.status, 'rate_limited');
 });
 
-test('search() reports changed when payloads are unparseable', async () => {
+test('search() reports changed when payloads are unparseable and emits a diagnostic warn', async () => {
+  const logs = [];
   const ctx = {
     settings: { tiktokRegions: [], tiktokDetails: 0 },
+    log: (level, msg) => logs.push({ level, msg }),
     async capture() {
       return { payloads: [{ url: 'https://library.tiktok.com/api/v1/search?region=all', status: 200, body: '<html></html>' }] };
     },
@@ -189,6 +191,11 @@ test('search() reports changed when payloads are unparseable', async () => {
   const res = await search({ domain: 'decathlon.com', brand: 'Decathlon' }, ctx);
   assert.equal(res.status, 'changed');
   assert.equal(res.message, 'TikTok changed its response format');
+  const diag = logs.find((l) => l.level === 'warn' && l.msg.includes('unparseable'));
+  assert.ok(diag, 'expected a diagnostic warn for the unparseable payload');
+  assert.match(diag.msg, /HTTP 200/);
+  assert.match(diag.msg, /library\.tiktok\.com/);
+  assert.match(diag.msg, /\/api\/v1\/search/);
 });
 
 // ---- cross-platform advertiser names (seeds.advertiserNames) ----

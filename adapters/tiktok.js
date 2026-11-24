@@ -429,7 +429,13 @@ export async function search(seeds, ctx) {
         if (RATE_LIMIT_STATUS.has(Number(p.status))) { state.rateLimited = true; continue; }
         const r = parseTiktokSearch(p.body);
         if (r.rateLimited) { state.rateLimited = true; continue; }
-        if (!r.ok) continue;
+        if (!r.ok) {
+          const len = p.body == null ? -1 : (typeof p.body === 'string' ? p.body.length : String(p.body).length);
+          let up = '';
+          try { const u = new URL(String(p.url || '')); up = u.host + u.pathname; } catch { up = String(p.url || '').split('?')[0]; }
+          log('warn', `TikTok search response unparseable: HTTP ${p.status}, ${len} bytes, ${up}`);
+          continue;
+        }
         parsedAny = true;
         state.anyOk = true;
         for (const ad of r.ads) { if (!state.raw.has(ad.id)) count += 1; addRaw({ ...ad, viaName }); }
