@@ -7,6 +7,14 @@ Google Tag Manager and 20+ more) a website uses, with the account IDs behind the
 is running in the Google, Meta, TikTok, LinkedIn, Microsoft and Snapchat ad libraries. It replaces
 checking each ad library by hand, runs entirely in your browser and needs no account. MIT licensed.
 
+![Superpixel side panel next to a demo online store, showing confirmed Google ads found for its domain](docs/screenshots/screenshot-1-hero.png)
+
+![Superpixel side panel listing the tags on a website with their account IDs: Google Ads, Meta Pixel, TikTok Pixel, LinkedIn Insight and Microsoft UET](docs/screenshots/screenshot-2-tags.png)
+
+![Superpixel side panel with ads for one domain grouped by ad library: Google, Meta, TikTok, LinkedIn, Microsoft and Snapchat](docs/screenshots/screenshot-3-ads.png)
+
+<sub>Screenshots of the extension's side panel with demo data.</sub>
+
 [![License: MIT](https://img.shields.io/github/license/PiotrZapolski/superpixel)](LICENSE)
 [![Version](https://img.shields.io/github/manifest-json/v/PiotrZapolski/superpixel?label=version)](manifest.json)
 [![Chrome Web Store version](https://img.shields.io/chrome-web-store/v/pffnggdhlpiegolckplpbfgbbigiiafh?label=chrome%20web%20store)](https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh)

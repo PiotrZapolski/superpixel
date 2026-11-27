@@ -103,6 +103,10 @@ Deploy = push to `master`. The prod box polls every 2 minutes (systemd timer
 to it, and rebuilds and restarts the container only when `server/` changed or the container is not
 running and healthy. It then waits for the container to report healthy.
 
+- IndexNow: after a healthy deploy the script runs `indexnow.py` in the container, which sends every
+  `sitemap.xml` URL in one POST to `api.indexnow.org`. One attempt per version of `server/site/`
+  (marker `.git/indexnow-site`); a failure only logs a warning. The HTTP status is in the journal.
+  Send again by hand: `docker exec superpixel-log python indexnow.py`
 - Logs: `journalctl -u superpixel-deploy -n 50`
 - Manual deploy: `systemctl start superpixel-deploy`
 

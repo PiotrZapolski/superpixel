@@ -1,0 +1,24 @@
+# Superpixel
+
+> Superpixel is a free, open-source Chrome extension (side panel) that shows every ad pixel and account ID on any website, plus the live ads running to that domain.
+
+The Superpixel Chrome extension for competitor ads and tags is MIT licensed, runs in your browser and needs no Superpixel account. It shows the marketing, ads and analytics tags installed on a website with the account IDs found in the page (a tag that does not expose an ID is still listed), and searches the Google, Meta, TikTok, LinkedIn, Microsoft (Bing) and Snapchat ad libraries. Coverage differs by library. Google Ads Transparency search needs a Google account signed in to the same Chrome profile.
+
+## Website
+
+- [Superpixel website (English)](https://superpixel.run/): what the extension does, supported ad libraries, installation, privacy and FAQ
+- [Superpixel website (Polish)](https://superpixel.run/pl/): the same page in Polish
+- [Video](https://superpixel.run/video/): 40 second explainer
+- [Privacy policy](https://superpixel.run/privacy/): what stays in your browser and what the opt-in debug log sends
+
+## Install
+
+- [Chrome Web Store](https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh): add the extension to Chrome
+
+## Code
+
+- [Source code on GitHub](https://github.com/PiotrZapolski/superpixel): code, README and issues
+
+## License
+
+- [MIT license](https://github.com/PiotrZapolski/superpixel/blob/master/LICENSE)
