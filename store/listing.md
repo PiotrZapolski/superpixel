@@ -9,7 +9,7 @@ attached to each GitHub release).
 ## Name and summary (from manifest.json, shown automatically)
 
 - Name: `Superpixel: Competitor Ads & Tags`
-- Summary (132 characters max): `See the marketing tags and account IDs on any website, plus the ads it runs on Google, Meta, TikTok, LinkedIn, Bing and Snapchat.`
+- Summary (132 characters max): `See the marketing tags and account IDs on any website, plus the ads its owner runs, from public ad transparency libraries.`
 
 ## Category and language
 
