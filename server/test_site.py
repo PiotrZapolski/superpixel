@@ -137,6 +137,38 @@ class SiteTestCase(unittest.TestCase):
             sitemap = f.read()
         self.assertEqual(sitemap.count("<lastmod>"), sitemap.count("<loc>"))
 
+    def test_real_site_social_card(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        site = os.path.join(here, "site")
+        url = "https://superpixel.run/assets/og-card.png"
+        alt_en = "Superpixel: every ad pixel and live ad behind any website"
+        alt_pl = "Superpixel: wszystkie piksele reklamowe i aktywne reklamy każdej strony"
+        pages = (
+            ("index.html", alt_en), ("pl/index.html", alt_pl),
+            ("privacy/index.html", alt_en), ("pl/privacy/index.html", alt_pl),
+        )
+        for rel, alt in pages:
+            with open(os.path.join(site, rel), encoding="utf-8") as f:
+                html = f.read()
+            for tag in (
+                f'<meta property="og:image" content="{url}">',
+                '<meta property="og:image:width" content="1280">',
+                '<meta property="og:image:height" content="640">',
+                f'<meta property="og:image:alt" content="{alt}">',
+                '<meta name="twitter:card" content="summary_large_image">',
+                f'<meta name="twitter:image" content="{url}">',
+            ):
+                self.assertEqual(html.count(tag), 1, f"{rel}: {tag}")
+        # The server must resolve the URL path, and the image must be copied into the container.
+        card = app.resolve_static(site, "/assets/og-card.png")
+        self.assertIsNotNone(card)
+        with open(card, "rb") as f:
+            header = f.read(24)
+        self.assertEqual(header[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual((int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")), (1280, 640))
+        with open(os.path.join(here, "Dockerfile"), encoding="utf-8") as f:
+            self.assertIn("COPY site /app/site", f.read())
+
     def test_polish_video_paths_lead_to_the_english_page(self):
         for path in ("/pl/video", "/pl/video/"):
             status, _, resp = self.request("GET", path)
