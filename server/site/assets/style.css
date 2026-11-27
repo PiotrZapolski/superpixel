@@ -431,6 +431,32 @@ pre code { background: none; padding: 0; color: inherit; font-size: .85rem; }
 .copy:hover { background: var(--ink); color: var(--paper); }
 .clone-note { margin: 12px 0 0; font-size: .95rem; color: var(--ink-soft); }
 
+/* Questions, comparison, FAQ */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.qa + .qa { margin-top: 64px; }
+.qa h2 { font-size: clamp(1.5rem, 1.1rem + 1.8vw, 2.1rem); max-width: 24em; }
+.qa p { color: var(--ink-soft); max-width: 46em; }
+.qa .answer { font-size: 1.15rem; color: var(--ink); }
+.qa-grid { display: grid; gap: 32px; margin-top: 28px; }
+@media (min-width: 900px) { .qa-grid { grid-template-columns: 1.3fr 1fr; gap: 56px; align-items: start; } }
+.qa-grid > * { min-width: 0; }
+.qa-side { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 26px; }
+.qa-side h3 { font-size: 1.1rem; }
+.qa-side ul { margin: 0 0 14px; padding-left: 1.1em; color: var(--ink-soft); }
+.qa-side li + li { margin-top: 6px; }
+.qa-side p { margin: 0; font-size: .95rem; }
+.compare table { min-width: 720px; }
+.compare tbody th { width: 22%; }
+.compare td:nth-child(2) { color: var(--ink); font-weight: 600; }
+.steps-h { font-size: 1.2rem; margin-top: 8px; }
+.steps-note { color: var(--ink-soft); max-width: 40em; margin-bottom: 24px; }
+.faq { max-width: 52em; border-top: 1px solid var(--line); }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary { cursor: pointer; padding: 18px 0; }
+.faq summary h3 { display: inline; font-size: 1.15rem; margin: 0; }
+.faq details p { color: var(--ink-soft); margin: 0 0 20px; }
+.foot-meta { opacity: .9; }
+
 /* Footer */
 .foot { background: var(--ink); color: var(--paper); padding: 48px 0; font-size: .95rem; }
 .foot a { color: inherit; }

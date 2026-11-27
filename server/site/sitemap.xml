@@ -2,29 +2,34 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://superpixel.run/</loc>
+    <lastmod>2026-11-27</lastmod>
     <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/"/>
     <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/"/>
   </url>
   <url>
     <loc>https://superpixel.run/pl/</loc>
+    <lastmod>2026-11-27</lastmod>
     <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/"/>
     <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/"/>
   </url>
   <url>
     <loc>https://superpixel.run/privacy/</loc>
+    <lastmod>2026-11-27</lastmod>
     <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/privacy/"/>
     <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/privacy/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/privacy/"/>
   </url>
   <url>
     <loc>https://superpixel.run/pl/privacy/</loc>
+    <lastmod>2026-11-27</lastmod>
     <xhtml:link rel="alternate" hreflang="en" href="https://superpixel.run/privacy/"/>
     <xhtml:link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/privacy/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://superpixel.run/privacy/"/>
   </url>
   <url>
     <loc>https://superpixel.run/video/</loc>
+    <lastmod>2026-11-27</lastmod>
   </url>
 </urlset>

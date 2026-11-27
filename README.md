@@ -2,10 +2,20 @@
 
 # Superpixel
 
-Website: https://superpixel.run
+Superpixel is a free, open-source Chrome extension that shows which marketing tags (Meta Pixel, GA4,
+Google Tag Manager and 20+ more) a website uses, with the account IDs behind them, and which ads it
+is running in the Google, Meta, TikTok, LinkedIn, Microsoft and Snapchat ad libraries. It replaces
+checking each ad library by hand, runs entirely in your browser and needs no account. MIT licensed.
 
-Superpixel is a Chrome extension (Manifest V3, plain JavaScript, no build step) for competitor
-research. Point it at a domain, typed or the active tab, and it shows two layers of information
+[![License: MIT](https://img.shields.io/github/license/PiotrZapolski/superpixel)](LICENSE)
+[![Version](https://img.shields.io/github/manifest-json/v/PiotrZapolski/superpixel?label=version)](manifest.json)
+[![Chrome Web Store version](https://img.shields.io/chrome-web-store/v/pffnggdhlpiegolckplpbfgbbigiiafh?label=chrome%20web%20store)](https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh)
+[![Chrome Web Store users](https://img.shields.io/chrome-web-store/users/pffnggdhlpiegolckplpbfgbbigiiafh)](https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh)
+
+**[Add to Chrome](https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh)** | [Website](https://superpixel.run) | [40 s video](https://superpixel.run/video/)
+
+Superpixel is a Chrome extension for competitor ads and tags (Manifest V3, plain JavaScript, no
+build step). Point it at a domain, typed or the active tab, and it shows two layers of information
 directly in a side panel, entirely in your own browser.
 
 - **Layer A, on site tags**: every marketing, ads and analytics tag installed on the site and the
@@ -35,7 +45,20 @@ direct deep link to each library instead of scraping it.
 
 ## Install
 
-1. Clone this repository.
+**From the Chrome Web Store (quickest):** open the
+[Superpixel page in the Chrome Web Store](https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh), click "Add to Chrome", pin the icon and click it to
+open the side panel.
+
+**Newest version from GitHub (Load unpacked):** the store build can be a few versions behind this
+repository.
+
+1. Clone this repository (or download a release zip from the
+   [releases page](https://github.com/PiotrZapolski/superpixel/releases) and unzip it):
+
+   ```
+   git clone https://github.com/PiotrZapolski/superpixel.git
+   ```
+
 2. In Chrome, open `chrome://extensions`.
 3. Turn on "Developer mode" (top right).
 4. Click "Load unpacked" and select the cloned repository folder.
@@ -66,6 +89,41 @@ Every ad is tagged with how confident Superpixel is that it belongs to the scann
   is not on the domain.
 - **name**: the ad was only found through an advertiser name search (used by libraries, such as
   Snap, that do not support keyword search), with no landing page confirmation.
+
+## How is Superpixel different?
+
+| | Superpixel | Checking each ad library by hand | Paid ad spy tools |
+|---|---|---|---|
+| On-site tags and account IDs | Yes, in the same scan as the ads | No, ad libraries do not show a site's tags | Depends on the tool |
+| Ads from six libraries in one panel | Yes, queried in parallel | One library at a time, each in its own tab | Usually the tool's own ad database |
+| Account | No Superpixel account; Google sign-in in Chrome for Google's library | The sign-ins the libraries ask for | Usually an account with the vendor |
+| Where the data is | Your browser's local extension storage | Your browser | The vendor's servers |
+| Source code | Open, MIT | Not applicable | Usually closed |
+
+## FAQ
+
+**How do I see what ads a website is running?** Install Superpixel, open the website and click
+"Current tab" (or type the domain and click "Scan"). Superpixel searches the six ad libraries above
+at once and lists the ads that point to that domain.
+
+**How do I find a website's Meta Pixel ID and ad account IDs?** Scan the site with Superpixel. Next
+to each detected tag the side panel shows the account ID found in the page, for example the Meta
+Pixel ID, the GA4 measurement ID, the Google Tag Manager container and the Google Ads conversion ID.
+A tag that does not expose an ID in the page's code is still listed as present.
+
+**Is Superpixel free? Does it need an account?** It is free, MIT licensed, and has no account. Only
+Google Ads Transparency search needs a Google account signed in to the same Chrome profile; Facebook
+login is optional.
+
+**Where is my data sent?** Scan requests go from your browser to the public ad libraries and results
+stay in local extension storage. See [Privacy](#privacy).
+
+**Why does it need access to all sites?** Because you can scan any website: reading the tags on a
+page you pick needs host access to it. Superpixel reads a page only when you start a scan, and its
+content scripts run only on the Meta and TikTok ad library pages.
+
+**Which browsers?** Google Chrome 116 or newer on desktop. Other browsers are not officially
+supported.
 
 ## Requirements
 
@@ -150,6 +208,7 @@ adapters/         one file per ad library, plus an optional SearchAPI.io fallbac
 content/          scripts injected into capture tabs to observe network responses
 sidepanel/        the side panel UI (HTML, CSS, JS)
 icons/            extension icons
+store/            Chrome Web Store listing text, graphics and the package script (store/pack.sh)
 tests/            unit tests and fixtures, run with node --test
 ```
 

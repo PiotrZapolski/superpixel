@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Superpixel - zobacz tagi i reklamy stojące za każdą stroną</title>
-<meta name="description" content="Superpixel to darmowe rozszerzenie do Chrome o otwartym kodzie do analizy konkurencji. Pokazuje tagi marketingowe na stronie i reklamy z publicznych bibliotek reklam, w całości w Twojej przeglądarce.">
+<title>Superpixel - rozszerzenie do Chrome, które pokazuje reklamy i tagi każdej strony</title>
+<meta name="description" content="Superpixel to darmowe rozszerzenie do Chrome o otwartym kodzie, które pokazuje reklamy i tagi konkurencji. Wypisuje tagi marketingowe i identyfikatory kont na stronie oraz reklamy z sześciu publicznych bibliotek reklam, w całości w Twojej przeglądarce.">
 <link rel="canonical" href="https://superpixel.run/pl/">
 <link rel="alternate" hreflang="en" href="https://superpixel.run/">
 <link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/">
@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="Superpixel">
 <meta property="og:locale" content="pl_PL">
 <meta property="og:locale:alternate" content="en_US">
-<meta property="og:title" content="Superpixel - zobacz tagi i reklamy stojące za każdą stroną">
+<meta property="og:title" content="Superpixel - rozszerzenie do Chrome, które pokazuje reklamy i tagi każdej strony">
 <meta property="og:description" content="Darmowe rozszerzenie do Chrome o otwartym kodzie do analizy konkurencji. Tagi na stronie i aktywne reklamy w jednym panelu bocznym, w Twojej przeglądarce.">
 <meta property="og:url" content="https://superpixel.run/pl/">
 <meta property="og:image" content="https://superpixel.run/assets/icon128.png">
@@ -25,11 +25,44 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap">
-<link rel="stylesheet" href="/assets/style.css?v=5">
+<link rel="stylesheet" href="/assets/style.css?v=6">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Superpixel",
+  "alternateName": "Superpixel: Competitor Ads & Tags",
+  "description": "Superpixel to darmowe rozszerzenie do Chrome o otwartym kodzie. Pokazuje tagi marketingowe i identyfikatory kont na dowolnej stronie oraz reklamy z bibliotek Google, Meta, TikTok, LinkedIn, Microsoft i Snapchat.",
+  "url": "https://superpixel.run/pl/",
+  "inLanguage": "pl",
+  "applicationCategory": "BrowserApplication",
+  "operatingSystem": "Chrome",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "installUrl": "https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh",
+  "sameAs": [
+    "https://github.com/PiotrZapolski/superpixel",
+    "https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh"
+  ],
+  "image": "https://superpixel.run/assets/icon128.png",
+  "dateModified": "2026-11-27",
+  "author": {
+    "@type": "Person",
+    "name": "Piotr Zapolski",
+    "url": "https://piotrzapolski.com/open-source/"
+  }
+}
+</script>
 </head>
 <body>
 <a class="skip" href="#main">Przejdź do treści</a>
 <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-add" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/><path d="M8 12h8"/></g></symbol>
   <symbol id="i-gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
   <symbol id="p-google" viewBox="0 0 24 24"><path fill="#4285F4" d="M3.9998 22.9291C1.7908 22.9291 0 21.1383 0 18.9293s1.7908-3.9998 3.9998-3.9998 3.9998 1.7908 3.9998 3.9998-1.7908 3.9998-3.9998 3.9998zm19.4643-6.0004L15.4632 3.072C14.3586 1.1587 11.9121.5028 9.9988 1.6074S7.4295 5.1585 8.5341 7.0718l8.0009 13.8567c1.1046 1.9133 3.5511 2.5679 5.4644 1.4646 1.9134-1.1046 2.568-3.5511 1.4647-5.4644zM7.5137 4.8438L1.5645 15.1484A4.5 4.5 0 0 1 4 14.4297c2.5597-.0075 4.6248 2.1585 4.4941 4.7148l3.2168-5.5723-3.6094-6.25c-.4499-.7793-.6322-1.6394-.5878-2.4784z"/></symbol>
   <symbol id="p-meta" viewBox="0 0 24 24"><path fill="#0866FF" d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></symbol>
@@ -68,6 +101,7 @@
       <a href="#layers">Co pokazuje</a>
       <a href="#libraries">Biblioteki reklam</a>
       <a href="#install">Instalacja</a>
+      <a href="#faq">Pytania</a>
       <a href="/pl/privacy/">Prywatność</a>
     </nav>
     <div class="top-end">
@@ -86,13 +120,13 @@
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <h1>Zobacz tagi i reklamy stojące za każdą stroną<span class="dot" aria-hidden="true"></span></h1>
-      <p class="lede">Superpixel to darmowe rozszerzenie do Chrome o otwartym kodzie do analizy konkurencji. Wpisz domenę albo przeskanuj otwartą kartę. Panel boczny pokaże wszystkie tagi marketingowe, reklamowe i analityczne na stronie, a potem pobierze z publicznych bibliotek reklam te reklamy, które prowadzą do tej domeny. Wszystko dzieje się w Twojej przeglądarce.</p>
+      <p class="lede">Superpixel to rozszerzenie do Chrome, które pokazuje reklamy i tagi konkurencji. Jest darmowe i ma otwarty kod. Wpisz domenę albo przeskanuj otwartą kartę. Panel boczny pokaże wszystkie tagi marketingowe, reklamowe i analityczne na stronie, a potem pobierze z publicznych bibliotek reklam te reklamy, które prowadzą do tej domeny. Wszystko dzieje się w Twojej przeglądarce.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>Pobierz za darmo z GitHuba</a>
-        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/main.zip">Pobierz ZIP</a>
+        <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-add"/></svg>Dodaj do Chrome</a>
+        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>Zobacz na GitHubie</a>
       </div>
       <a class="watch" href="/video/" hreflang="en"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"/></svg>Zobacz 40-sekundowy film (EN)</a>
-      <p class="fine">Licencja MIT. Rozszerzenia nie ma jeszcze w Chrome Web Store: wczytujesz je jako rozpakowane w trybie dewelopera, <a href="#install">instrukcja niżej</a>.</p>
+      <p class="fine">Za darmo, na licencji MIT, bez konta. Wolisz najnowszą wersję prosto z GitHuba? <a href="#install">Wczytaj ją jako rozpakowaną</a>.</p>
     </div>
 
     <figure class="scan" role="img" aria-label="Ilustracja: strona konkurencji z zaznaczonymi tagami marketingowymi, a obok zadokowany panel boczny Superpixel z listą tagów i reklam znalezionych w każdej bibliotece, z etykietą dopasowania.">
@@ -209,13 +243,67 @@
   </div>
 </section>
 
+<section id="how" class="section">
+  <div class="wrap">
+    <article class="qa">
+      <h2>Jak sprawdzić, jakie reklamy wyświetla dana strona?</h2>
+      <p class="answer">Zainstaluj Superpixel, otwórz stronę i kliknij "Scan" w panelu bocznym. Superpixel przeszuka naraz sześć publicznych bibliotek reklam i wypisze reklamy, które prowadzą do tej domeny.</p>
+      <div class="qa-grid">
+        <ol class="steps">
+          <li><a href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh">Dodaj Superpixel do Chrome</a> z Chrome Web Store.</li>
+          <li>Otwórz stronę, którą chcesz sprawdzić, albo przygotuj jej domenę.</li>
+          <li>Kliknij ikonę Superpixel, żeby otworzyć panel boczny.</li>
+          <li>Kliknij "Current tab" albo wpisz domenę i kliknij "Scan".</li>
+          <li>Przejrzyj reklamy z kolejnych bibliotek. Włącz "Only confirmed", żeby zostały tylko te, których strona docelowa leży w tej domenie.</li>
+        </ol>
+        <div class="qa-side">
+          <h3>Sześć bibliotek reklam, które przeszukuje</h3>
+          <ul><li>Google Ads Transparency Center</li><li>Meta Ad Library</li><li>TikTok Ad Library</li><li>LinkedIn Ad Library</li><li>Microsoft (Bing) Ad Library</li><li>Snapchat Ads Gallery</li></ul>
+          <p>Każda biblioteka ma inny zasięg, zobacz <a href="#libraries">tabelę wyżej</a>.</p>
+        </div>
+      </div>
+    </article>
+    <article class="qa">
+      <h2>Jak znaleźć identyfikator Meta Pixel i identyfikatory kont reklamowych strony?</h2>
+      <p class="answer">Przeskanuj stronę Superpixelem. Przy każdym wykrytym tagu panel boczny pokazuje identyfikator konta znaleziony w kodzie strony, na przykład identyfikator Meta Pixel, identyfikator pomiaru GA4 (G-...), kontener Google Tag Managera (GTM-...) i identyfikator konwersji Google Ads (AW-...).</p>
+      <p>Superpixel rozpoznaje te tagi: Meta Pixel, Google Ads, Google Floodlight, Google Analytics 4, Universal Analytics, Google Tag Manager, LinkedIn Insight, TikTok Pixel, X (Twitter) Pixel, Pinterest Tag, Snap Pixel, Reddit Pixel, Microsoft UET, Quora Pixel, Taboola, Outbrain, Criteo, Amazon Ads, AdRoll, Microsoft Clarity, Hotjar, Yandex Metrica, HubSpot, Klaviyo. Identyfikator widać wtedy, gdy tag podaje go w kodzie strony. Gdy go nie podaje, tag i tak pojawia się na liście jako obecny. To identyfikatory tagów i śledzenia, które widzi każdy odwiedzający stronę. Nie dają dostępu do niczyjego konta reklamowego.</p>
+    </article>
+    <article class="qa">
+      <h2>Czy Superpixel jest darmowy?</h2>
+      <p class="answer">Tak. Superpixel jest darmowy, ma otwarty kod na licencji MIT i nie wymaga zakładania żadnego konta Superpixel.</p>
+      <p>Jedyne logowanie, którego potrzebuje, to Twoje konto Google w tym samym profilu Chrome, bo wymaga go wyszukiwanie w Google Ads Transparency Center. Bez niego karta Google pokazuje status "needs you" z linkiem do logowania. Logowanie do Facebooka nie jest wymagane, ale poprawia wyniki z Meta Ad Library. Pozostałe biblioteki działają bez konta.</p>
+    </article>
+  </div>
+</section>
+
+<section id="compare" class="section section-alt">
+  <div class="wrap">
+    <h2>Czym Superpixel różni się od innych sposobów?</h2>
+    <p class="intro">Superpixel zastępuje ręczne otwieranie kolejnych bibliotek reklam, a wyniki zostawia na Twoim komputerze, nie na koncie u dostawcy.</p>
+    <div class="table-wrap compare">
+      <table>
+        <thead><tr><th scope="col"><span class="vh">Pytanie</span></th><th scope="col">Superpixel</th><th scope="col">Ręczne sprawdzanie każdej biblioteki reklam</th><th scope="col">Płatne narzędzia do podglądania reklam</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Tagi na stronie i identyfikatory kont</th><td>Tak, w tym samym skanie co reklamy</td><td>Nie, biblioteki reklam nie pokazują tagów strony. Kod strony czytasz samodzielnie.</td><td>Zależy od narzędzia</td></tr>
+          <tr><th scope="row">Reklamy z sześciu bibliotek w jednym panelu</th><td>Tak, wszystkie biblioteki odpytywane równolegle</td><td>Jedna biblioteka naraz, każda w osobnej karcie</td><td>Zwykle własna baza reklam narzędzia</td></tr>
+          <tr><th scope="row">Konto</th><td>Bez konta Superpixel. Logowanie do Google w Chrome dla biblioteki Google.</td><td>Te same logowania, których wymagają biblioteki</td><td>Zwykle konto u dostawcy</td></tr>
+          <tr><th scope="row">Gdzie są dane</th><td>W lokalnej pamięci rozszerzenia w Twojej przeglądarce</td><td>W Twojej przeglądarce</td><td>Na serwerach dostawcy</td></tr>
+          <tr><th scope="row">Kod źródłowy</th><td>Otwarty, licencja MIT, na GitHubie</td><td>Nie dotyczy</td><td>Zwykle zamknięty</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <section id="install" class="section">
   <div class="wrap install-grid">
     <div>
       <h2>Instalacja</h2>
-      <p class="intro">Superpixela nie ma jeszcze w Chrome Web Store. Instalujesz go z kodu źródłowego:</p>
+      <p class="intro">Najszybciej: <a href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh">dodaj Superpixel z Chrome Web Store</a>, przypnij ikonę i kliknij ją, żeby otworzyć panel boczny.</p>
+      <h3 class="steps-h">Najnowsza wersja z GitHuba (Załaduj rozpakowane)</h3>
+      <p class="steps-note">Wersja w sklepie bywa o kilka wydań starsza niż repozytorium. Najnowszy kod wczytasz samodzielnie:</p>
       <ol class="steps">
-        <li>Sklonuj repozytorium albo <a href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/main.zip">pobierz ZIP</a> i go rozpakuj.
+        <li>Sklonuj repozytorium albo <a href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/master.zip">pobierz ZIP</a> i go rozpakuj.
           <pre><code>git clone https://github.com/PiotrZapolski/superpixel.git</code></pre></li>
         <li>W Chrome otwórz <code>chrome://extensions</code>.</li>
         <li>Włącz "Tryb dewelopera" (w prawym górnym rogu).</li>
@@ -259,13 +347,34 @@
   </div>
 </section>
 
+<section id="faq" class="section">
+  <div class="wrap">
+    <h2>Najczęstsze pytania</h2>
+    <div class="faq">
+      <details><summary><h3>Które biblioteki reklam przeszukuje Superpixel?</h3></summary>
+        <p>Sześć: Google Ads Transparency Center (cały świat, razem z YouTube), Meta Ad Library (cały świat, aktywne reklamy), TikTok Ad Library (UE/EOG, Wielka Brytania, Szwajcaria), LinkedIn Ad Library (cały świat, ostatnie 12 miesięcy), Microsoft (Bing) Ad Library (UE/EOG) i Snapchat Ads Gallery (UE). Dla Pinteresta, X, Apple i reklam politycznych Snapa pokazuje bezpośredni link do biblioteki.</p></details>
+      <details><summary><h3>Czy Superpixel wymaga konta?</h3></summary>
+        <p>Nie. Konta Superpixel nie ma. Wyszukiwanie w Google Ads Transparency Center wymaga konta Google zalogowanego w tym samym profilu Chrome, a logowanie do Facebooka jest opcjonalne. Pozostałe biblioteki działają bez żadnego konta.</p></details>
+      <details><summary><h3>Dokąd trafiają moje dane?</h3></summary>
+        <p>Zapytania skanu idą prosto z Twojej przeglądarki do publicznych bibliotek reklam, a wyniki zostają w lokalnej pamięci rozszerzenia. Zapytanie do searchapi.io wychodzi tylko wtedy, gdy dodasz własny klucz jako rozwiązanie zapasowe. Log diagnostyczny (ostrzeżenia i skanowana domena) trafia na superpixel.run tylko za Twoją zgodą. Szczegóły są w <a href="/pl/privacy/">polityce prywatności</a>.</p></details>
+      <details><summary><h3>Dlaczego Superpixel potrzebuje dostępu do wszystkich stron?</h3></summary>
+        <p>Bo możesz przeskanować dowolną stronę. Żeby odczytać tagi na wybranej stronie, rozszerzenie musi mieć do niej dostęp, a nie wie z góry, jaką domenę wpiszesz. Stronę czyta tylko wtedy, gdy uruchomisz skan, a jego skrypty treści działają wyłącznie na stronach bibliotek reklam Meta i TikTok.</p></details>
+      <details><summary><h3>Czy Superpixel ma otwarty kod?</h3></summary>
+        <p>Tak. Kod jest na <a href="https://github.com/PiotrZapolski/superpixel">GitHubie</a> na licencji MIT. To rozszerzenie Manifest V3 w czystym JavaScripcie, bez etapu budowania, więc czytasz dokładnie ten kod, który działa w przeglądarce.</p></details>
+      <details><summary><h3>W jakich przeglądarkach działa Superpixel?</h3></summary>
+        <p>W Google Chrome 116 lub nowszym na komputerze. Superpixel korzysta z panelu bocznego Chrome. Inne przeglądarki nie są oficjalnie wspierane.</p></details>
+    </div>
+  </div>
+</section>
+
 <section class="section closing">
   <div class="wrap closing-inner">
     <div class="closing-copy">
       <h2>Darmowy, na licencji MIT, na GitHubie</h2>
-      <p>Przeczytaj kod, zgłoś problem albo wyślij pull request.</p>
+      <p>Dodaj go do Chrome, przeczytaj kod, zgłoś problem albo wyślij pull request.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>Zobacz na GitHubie</a>
+        <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-add"/></svg>Dodaj do Chrome</a>
+        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>Zobacz na GitHubie</a>
         <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/issues">Zgłoś błąd</a>
       </div>
     </div>
@@ -286,6 +395,7 @@
   <div class="wrap foot-inner">
     <p class="foot-brand"><img src="/assets/icon128.png" width="24" height="24" alt=""> Superpixel</p>
     <p>Udostępniony na <a href="https://github.com/PiotrZapolski/superpixel/blob/master/LICENSE">licencji MIT</a>. Ta strona nie używa trackerów ani ciasteczek. <a href="/pl/privacy/">Polityka prywatności</a></p>
+    <p class="foot-meta">Autor: <a href="https://piotrzapolski.com/open-source/" rel="author">Piotr Zapolski</a>. Ostatnia aktualizacja: <time datetime="2026-11-27">27 listopada 2026</time>.</p>
     <p class="foot-terms">Superpixel automatyzuje publiczne biblioteki przejrzystości reklam w Twojej przeglądarce, z Twoją sesją i Twoim adresem IP. Może to naruszać regulaminy platform, a one mogą ograniczać lub blokować konta, które z niego korzystają. Używaj go odpowiedzialnie i na własne ryzyko.</p>
     <nav class="lang" aria-label="Język">
       <a href="/" hreflang="en" lang="en">English</a>
