@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Superpixel: Competitor Ads & Tags",
   "short_name": "Superpixel",
-  "version": "0.1.5",
-  "description": "See the marketing tags and account IDs on any website, plus the ads it runs on Google, Meta, TikTok, LinkedIn, Bing and Snapchat.",
+  "version": "0.1.6",
+  "description": "See the marketing tags and account IDs on any website, plus the ads its owner runs, from public ad transparency libraries.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",
