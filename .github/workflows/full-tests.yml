@@ -1,6 +1,8 @@
 name: Full tests
 
-# Pelny zestaw. Wolany z ci.yml (PR) i przez kolejke merge (ref = sha albo galaz).
+# Pelny zestaw (sekundy). Wolany z ci.yml na kazdym PR; recznie przez workflow_dispatch.
+# Repo jest publiczne, wiec bez kolejki merge (wspolne workflowy sa prywatne, agentshub-sdlc#200):
+# merge po zielonym CI na PR.
 on:
   workflow_call:
     inputs:

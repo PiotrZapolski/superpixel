@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Superpixel - see the tags and ads behind any website</title>
-<meta name="description" content="Superpixel is a free, open-source Chrome extension for competitor research. It lists the marketing tags on a site and the ads it runs in public ad libraries, entirely in your browser.">
+<title>Superpixel - Chrome extension to see the ads and tags of any website</title>
+<meta name="description" content="Superpixel is a free, open-source Chrome extension for competitor ads and tags. It lists the marketing tags and account IDs on a site and the ads it runs in six public ad libraries, entirely in your browser.">
 <link rel="canonical" href="https://superpixel.run/">
 <link rel="alternate" hreflang="en" href="https://superpixel.run/">
 <link rel="alternate" hreflang="pl" href="https://superpixel.run/pl/">
@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="Superpixel">
 <meta property="og:locale" content="en_US">
 <meta property="og:locale:alternate" content="pl_PL">
-<meta property="og:title" content="Superpixel - see the tags and ads behind any website">
+<meta property="og:title" content="Superpixel - Chrome extension to see the ads and tags of any website">
 <meta property="og:description" content="A free, open-source Chrome extension for competitor research. On-site tags and running ads, in one side panel, in your own browser.">
 <meta property="og:url" content="https://superpixel.run/">
 <meta property="og:image" content="https://superpixel.run/assets/icon128.png">
@@ -25,11 +25,44 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap">
-<link rel="stylesheet" href="/assets/style.css?v=5">
+<link rel="stylesheet" href="/assets/style.css?v=6">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Superpixel",
+  "alternateName": "Superpixel: Competitor Ads & Tags",
+  "description": "Superpixel is a free, open-source Chrome extension that shows the marketing tags and account IDs on any website and the ads it runs in the Google, Meta, TikTok, LinkedIn, Microsoft and Snapchat ad libraries.",
+  "url": "https://superpixel.run/",
+  "inLanguage": "en",
+  "applicationCategory": "BrowserApplication",
+  "operatingSystem": "Chrome",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "installUrl": "https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh",
+  "sameAs": [
+    "https://github.com/PiotrZapolski/superpixel",
+    "https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh"
+  ],
+  "image": "https://superpixel.run/assets/icon128.png",
+  "dateModified": "2026-11-27",
+  "author": {
+    "@type": "Person",
+    "name": "Piotr Zapolski",
+    "url": "https://piotrzapolski.com/open-source/"
+  }
+}
+</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-add" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/><path d="M8 12h8"/></g></symbol>
   <symbol id="i-gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
   <symbol id="p-google" viewBox="0 0 24 24"><path fill="#4285F4" d="M3.9998 22.9291C1.7908 22.9291 0 21.1383 0 18.9293s1.7908-3.9998 3.9998-3.9998 3.9998 1.7908 3.9998 3.9998-1.7908 3.9998-3.9998 3.9998zm19.4643-6.0004L15.4632 3.072C14.3586 1.1587 11.9121.5028 9.9988 1.6074S7.4295 5.1585 8.5341 7.0718l8.0009 13.8567c1.1046 1.9133 3.5511 2.5679 5.4644 1.4646 1.9134-1.1046 2.568-3.5511 1.4647-5.4644zM7.5137 4.8438L1.5645 15.1484A4.5 4.5 0 0 1 4 14.4297c2.5597-.0075 4.6248 2.1585 4.4941 4.7148l3.2168-5.5723-3.6094-6.25c-.4499-.7793-.6322-1.6394-.5878-2.4784z"/></symbol>
   <symbol id="p-meta" viewBox="0 0 24 24"><path fill="#0866FF" d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></symbol>
@@ -68,6 +101,7 @@
       <a href="#layers">What it shows</a>
       <a href="#libraries">Ad libraries</a>
       <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
       <a href="/privacy/">Privacy</a>
     </nav>
     <div class="top-end">
@@ -86,13 +120,13 @@
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <h1>See the tags and ads behind any website<span class="dot" aria-hidden="true"></span></h1>
-      <p class="lede">Superpixel is a free, open-source Chrome extension for competitor research. Type a domain or scan the tab you are on. A side panel lists every marketing, ads and analytics tag on the site, then pulls the ads pointing to that domain from public ad transparency libraries. It all runs in your own browser.</p>
+      <p class="lede">Superpixel, a Chrome extension for competitor ads and tags, is free and open source. Type a domain or scan the tab you are on. A side panel lists every marketing, ads and analytics tag on the site, then pulls the ads pointing to that domain from public ad transparency libraries. It all runs in your own browser.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>Get it free on GitHub</a>
-        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/main.zip">Download ZIP</a>
+        <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-add"/></svg>Add to Chrome</a>
+        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>View on GitHub</a>
       </div>
       <a class="watch" href="/video/"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"/></svg>Watch the 40 s video</a>
-      <p class="fine">MIT license. Not in the Chrome Web Store yet: you load it unpacked in Developer mode, <a href="#install">steps below</a>.</p>
+      <p class="fine">Free, MIT license, no account. Want the newest build straight from GitHub? <a href="#install">Load it unpacked</a>.</p>
     </div>
 
     <figure class="scan" role="img" aria-label="Illustration: a competitor's website with its marketing tags marked, and the Superpixel side panel docked next to it, listing the tags and the ads found in each library with a match label.">
@@ -209,13 +243,67 @@
   </div>
 </section>
 
+<section id="how" class="section">
+  <div class="wrap">
+    <article class="qa">
+      <h2>How do I see what ads a website is running?</h2>
+      <p class="answer">Install Superpixel, open the website and click Scan in the side panel. Superpixel searches six public ad libraries at once and lists the ads that point to that domain.</p>
+      <div class="qa-grid">
+        <ol class="steps">
+          <li><a href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh">Add Superpixel to Chrome</a> from the Chrome Web Store.</li>
+          <li>Open the website you want to check, or have its domain ready.</li>
+          <li>Click the Superpixel icon to open the side panel.</li>
+          <li>Click "Current tab", or type the domain and click "Scan".</li>
+          <li>Read the ads library by library. Turn on "Only confirmed" to keep the ads whose landing page is on that domain.</li>
+        </ol>
+        <div class="qa-side">
+          <h3>The six ad libraries it searches</h3>
+          <ul><li>Google Ads Transparency Center</li><li>Meta Ad Library</li><li>TikTok Ad Library</li><li>LinkedIn Ad Library</li><li>Microsoft (Bing) Ad Library</li><li>Snapchat Ads Gallery</li></ul>
+          <p>Coverage differs by library, see <a href="#libraries">the table above</a>.</p>
+        </div>
+      </div>
+    </article>
+    <article class="qa">
+      <h2>How do I find a website's Meta Pixel ID and ad account IDs?</h2>
+      <p class="answer">Scan the site with Superpixel. Next to each tag it detects, the side panel shows the account ID found in the page, for example the Meta Pixel ID, the GA4 measurement ID (G-...), the Google Tag Manager container (GTM-...) and the Google Ads conversion ID (AW-...).</p>
+      <p>Superpixel recognizes these tags: Meta Pixel, Google Ads, Google Floodlight, Google Analytics 4, Universal Analytics, Google Tag Manager, LinkedIn Insight, TikTok Pixel, X (Twitter) Pixel, Pinterest Tag, Snap Pixel, Reddit Pixel, Microsoft UET, Quora Pixel, Taboola, Outbrain, Criteo, Amazon Ads, AdRoll, Microsoft Clarity, Hotjar, Yandex Metrica, HubSpot, Klaviyo. An ID is shown when the tag exposes it in the page's code. When it does not, the tag is still listed as present. These are tag and tracking IDs visible to every visitor of the site. They do not give access to anyone's ad account.</p>
+    </article>
+    <article class="qa">
+      <h2>Is Superpixel free?</h2>
+      <p class="answer">Yes. Superpixel is free and open source under the MIT license, and there is no Superpixel account to create.</p>
+      <p>The only sign-in involved is your own Google account in the same Chrome profile, which Google Ads Transparency Center search requires. Without it the Google card shows "needs you" with a sign-in link. Facebook login is optional and improves Meta Ad Library results. The other libraries need no account.</p>
+    </article>
+  </div>
+</section>
+
+<section id="compare" class="section section-alt">
+  <div class="wrap">
+    <h2>How is Superpixel different?</h2>
+    <p class="intro">Superpixel replaces opening each ad library by hand, and it keeps the results on your machine instead of in a vendor's account.</p>
+    <div class="table-wrap compare">
+      <table>
+        <thead><tr><th scope="col"><span class="vh">Question</span></th><th scope="col">Superpixel</th><th scope="col">Checking each ad library by hand</th><th scope="col">Paid ad spy tools</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">On-site tags and account IDs</th><td>Yes, in the same scan as the ads</td><td>No, ad libraries do not show a site's tags. You read the page source yourself.</td><td>Depends on the tool</td></tr>
+          <tr><th scope="row">Ads from six libraries in one panel</th><td>Yes, queried in parallel</td><td>One library at a time, each in its own tab</td><td>Usually the tool's own ad database</td></tr>
+          <tr><th scope="row">Account</th><td>No Superpixel account. Google sign-in in Chrome for Google's library.</td><td>The same sign-ins the libraries ask for</td><td>Usually an account with the vendor</td></tr>
+          <tr><th scope="row">Where the data is</th><td>In your browser's local extension storage</td><td>In your browser</td><td>On the vendor's servers</td></tr>
+          <tr><th scope="row">Source code</th><td>Open, MIT license, on GitHub</td><td>Not applicable</td><td>Usually closed</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <section id="install" class="section">
   <div class="wrap install-grid">
     <div>
       <h2>Install</h2>
-      <p class="intro">Superpixel is not in the Chrome Web Store yet. You install it from the source:</p>
+      <p class="intro">The quick way: <a href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh">add Superpixel from the Chrome Web Store</a>, pin the icon and click it to open the side panel.</p>
+      <h3 class="steps-h">Newest version from GitHub (Load unpacked)</h3>
+      <p class="steps-note">The store build can be a few versions behind the repository. To run the latest code, load it yourself:</p>
       <ol class="steps">
-        <li>Clone the repository, or <a href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/main.zip">download the ZIP</a> and unzip it.
+        <li>Clone the repository, or <a href="https://github.com/PiotrZapolski/superpixel/archive/refs/heads/master.zip">download the ZIP</a> and unzip it.
           <pre><code>git clone https://github.com/PiotrZapolski/superpixel.git</code></pre></li>
         <li>In Chrome, open <code>chrome://extensions</code>.</li>
         <li>Turn on "Developer mode" (top right).</li>
@@ -259,13 +347,34 @@
   </div>
 </section>
 
+<section id="faq" class="section">
+  <div class="wrap">
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details><summary><h3>Which ad libraries does Superpixel search?</h3></summary>
+        <p>Six: Google Ads Transparency Center (global, including YouTube), Meta Ad Library (global, active ads), TikTok Ad Library (EU/EEA, UK, Switzerland), LinkedIn Ad Library (global, last 12 months), Microsoft (Bing) Ad Library (EU/EEA) and Snapchat Ads Gallery (EU). For Pinterest, X, Apple and Snap political ads it gives a direct link to the library instead.</p></details>
+      <details><summary><h3>Does Superpixel need an account?</h3></summary>
+        <p>No. There is no Superpixel account. Google Ads Transparency Center search needs a Google account signed in to the same Chrome profile, and a Facebook login is optional. The other libraries work without any account.</p></details>
+      <details><summary><h3>Where is my data sent?</h3></summary>
+        <p>Scan requests go straight from your browser to the public ad libraries, and results stay in your browser's local extension storage. A request goes to searchapi.io only if you add your own key as a fallback. A debug log (warnings and the scanned domain) goes to superpixel.run only if you opt in. Details are in the <a href="/privacy/">privacy policy</a>.</p></details>
+      <details><summary><h3>Why does Superpixel need access to all sites?</h3></summary>
+        <p>Because you can scan any website. Reading the tags on a page you pick requires host access to that page, and Superpixel cannot know in advance which domain you will type. It reads a page only when you start a scan, and its content scripts run only on the Meta and TikTok ad library pages.</p></details>
+      <details><summary><h3>Is Superpixel open source?</h3></summary>
+        <p>Yes. The code is on <a href="https://github.com/PiotrZapolski/superpixel">GitHub</a> under the MIT license. It is a Manifest V3 extension in plain JavaScript with no build step, so the code you read is the code that runs.</p></details>
+      <details><summary><h3>Which browsers does Superpixel work in?</h3></summary>
+        <p>Google Chrome 116 or newer on desktop. Superpixel is built on Chrome's side panel API. Other browsers are not officially supported.</p></details>
+    </div>
+  </div>
+</section>
+
 <section class="section closing">
   <div class="wrap closing-inner">
     <div class="closing-copy">
       <h2>Free, MIT licensed, on GitHub</h2>
-      <p>Read the code, open an issue, or send a pull request.</p>
+      <p>Add it to Chrome, read the code, open an issue, or send a pull request.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>View on GitHub</a>
+        <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-add"/></svg>Add to Chrome</a>
+        <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-gh"/></svg>View on GitHub</a>
         <a class="btn btn-quiet" href="https://github.com/PiotrZapolski/superpixel/issues">Report a bug</a>
       </div>
     </div>
@@ -286,6 +395,7 @@
   <div class="wrap foot-inner">
     <p class="foot-brand"><img src="/assets/icon128.png" width="24" height="24" alt=""> Superpixel</p>
     <p>Released under the <a href="https://github.com/PiotrZapolski/superpixel/blob/master/LICENSE">MIT license</a>. No trackers, no cookies on this site. <a href="/privacy/">Privacy policy</a></p>
+    <p class="foot-meta">Made by <a href="https://piotrzapolski.com/open-source/" rel="author">Piotr Zapolski</a>. Last updated: <time datetime="2026-11-27">November 27, 2026</time>.</p>
     <p class="foot-terms">Superpixel automates public ad transparency libraries inside your own browser, with your own session and IP address. That may be against the terms of the platforms involved, and they may rate limit or block accounts that use it. Use it responsibly and at your own risk.</p>
     <nav class="lang" aria-label="Language">
       <a href="/" hreflang="en" lang="en" aria-current="page">English</a>

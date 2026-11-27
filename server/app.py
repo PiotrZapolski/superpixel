@@ -229,7 +229,11 @@ SITE_FILES = {
     "/sitemap.xml": "sitemap.xml",
 }
 # Page paths without the trailing slash redirect to the canonical one.
-SITE_REDIRECTS = {"/pl": "/pl/", "/privacy": "/privacy/", "/pl/privacy": "/pl/privacy/", "/video": "/video/"}
+# The video page exists only in English: the Polish paths lead to it instead of a 404.
+SITE_REDIRECTS = {
+    "/pl": "/pl/", "/privacy": "/privacy/", "/pl/privacy": "/pl/privacy/", "/video": "/video/",
+    "/pl/video": "/video/", "/pl/video/": "/video/",
+}
 CHUNK = 64 * 1024
 
 

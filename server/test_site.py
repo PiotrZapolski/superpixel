@@ -105,6 +105,44 @@ class SiteTestCase(unittest.TestCase):
         self.assertIn("<loc>https://superpixel.run/privacy/</loc>", sitemap)
         self.assertIn("<loc>https://superpixel.run/pl/privacy/</loc>", sitemap)
 
+    def test_real_site_store_link_and_structured_data(self):
+        site = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site")
+        store = "https://chromewebstore.google.com/detail/superpixel/pffnggdhlpiegolckplpbfgbbigiiafh"
+        for rel, lang in (("index.html", "en"), ("pl/index.html", "pl")):
+            with open(os.path.join(site, rel), encoding="utf-8") as f:
+                html = f.read()
+            self.assertIn(store, html, rel)
+            self.assertNotIn("Chrome Web Store yet", html, rel)
+            self.assertNotIn("nie ma jeszcze", html, rel)
+            self.assertNotIn("heads/main.zip", html, rel)
+            for anchor in ('id="how"', 'id="compare"', 'id="faq"', "<time datetime="):
+                self.assertIn(anchor, html, rel)
+            self.assertEqual(html.count("<details>"), 6, rel)
+            for dash in (chr(0x2014), chr(0x2013)):
+                self.assertNotIn(dash, html, rel)
+            start = html.index('<script type="application/ld+json">') + len('<script type="application/ld+json">')
+            data = json.loads(html[start:html.index("</script>", start)])
+            self.assertEqual(data["@type"], "SoftwareApplication", rel)
+            self.assertEqual(data["applicationCategory"], "BrowserApplication", rel)
+            self.assertEqual(data["operatingSystem"], "Chrome", rel)
+            self.assertEqual(data["offers"]["price"], "0", rel)
+            self.assertEqual(data["inLanguage"], lang, rel)
+            self.assertIn(store, data["sameAs"], rel)
+            self.assertEqual(data["author"]["@type"], "Person", rel)
+        with open(os.path.join(site, "video", "index.html"), encoding="utf-8") as f:
+            video = f.read()
+        self.assertIn(store, video)
+        self.assertNotIn("heads/main.zip", video)
+        with open(os.path.join(site, "sitemap.xml"), encoding="utf-8") as f:
+            sitemap = f.read()
+        self.assertEqual(sitemap.count("<lastmod>"), sitemap.count("<loc>"))
+
+    def test_polish_video_paths_lead_to_the_english_page(self):
+        for path in ("/pl/video", "/pl/video/"):
+            status, _, resp = self.request("GET", path)
+            self.assertEqual(status, 301, path)
+            self.assertEqual(resp.getheader("Location"), "/video/", path)
+
     def test_pl_redirects(self):
         status, _, resp = self.request("GET", "/pl")
         self.assertEqual(status, 301)
