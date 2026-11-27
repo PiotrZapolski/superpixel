@@ -270,8 +270,8 @@
     </article>
     <article class="qa">
       <h2>Czy Superpixel jest darmowy?</h2>
-      <p class="answer">Tak. Superpixel jest darmowy, ma otwarty kod na licencji MIT i nie wymaga zakładania żadnego konta Superpixel.</p>
-      <p>Jedyne logowanie, którego potrzebuje, to Twoje konto Google w tym samym profilu Chrome, bo wymaga go wyszukiwanie w Google Ads Transparency Center. Bez niego karta Google pokazuje status "needs you" z linkiem do logowania. Logowanie do Facebooka nie jest wymagane, ale poprawia wyniki z Meta Ad Library. Pozostałe biblioteki działają bez konta.</p>
+      <p class="answer">Tak. Superpixel jest darmowy, ma otwarty kod na licencji MIT i nie trzeba zakładać w nim żadnego konta.</p>
+      <p>Potrzebne jest tylko jedno logowanie: do konta Google w tym samym profilu Chrome, bo bez niego nie działa wyszukiwanie w Google Ads Transparency Center. Bez tego karta Google pokazuje status "needs you" z linkiem do logowania. Logowanie do Facebooka nie jest wymagane, ale poprawia wyniki z Meta Ad Library. Pozostałe biblioteki działają bez konta.</p>
     </article>
   </div>
 </section>
@@ -285,7 +285,7 @@
         <thead><tr><th scope="col"><span class="vh">Pytanie</span></th><th scope="col">Superpixel</th><th scope="col">Ręczne sprawdzanie każdej biblioteki reklam</th><th scope="col">Płatne narzędzia do podglądania reklam</th></tr></thead>
         <tbody>
           <tr><th scope="row">Tagi na stronie i identyfikatory kont</th><td>Tak, w tym samym skanie co reklamy</td><td>Nie, biblioteki reklam nie pokazują tagów strony. Kod strony czytasz samodzielnie.</td><td>Zależy od narzędzia</td></tr>
-          <tr><th scope="row">Reklamy z sześciu bibliotek w jednym panelu</th><td>Tak, wszystkie biblioteki odpytywane równolegle</td><td>Jedna biblioteka naraz, każda w osobnej karcie</td><td>Zwykle własna baza reklam narzędzia</td></tr>
+          <tr><th scope="row">Reklamy z sześciu bibliotek w jednym panelu</th><td>Tak, wszystkie biblioteki naraz</td><td>Jedna biblioteka naraz, każda w osobnej karcie</td><td>Zwykle własna baza reklam narzędzia</td></tr>
           <tr><th scope="row">Konto</th><td>Bez konta Superpixel. Logowanie do Google w Chrome dla biblioteki Google.</td><td>Te same logowania, których wymagają biblioteki</td><td>Zwykle konto u dostawcy</td></tr>
           <tr><th scope="row">Gdzie są dane</th><td>W lokalnej pamięci rozszerzenia w Twojej przeglądarce</td><td>W Twojej przeglądarce</td><td>Na serwerach dostawcy</td></tr>
           <tr><th scope="row">Kod źródłowy</th><td>Otwarty, licencja MIT, na GitHubie</td><td>Nie dotyczy</td><td>Zwykle zamknięty</td></tr>
@@ -354,11 +354,11 @@
       <details><summary><h3>Które biblioteki reklam przeszukuje Superpixel?</h3></summary>
         <p>Sześć: Google Ads Transparency Center (cały świat, razem z YouTube), Meta Ad Library (cały świat, aktywne reklamy), TikTok Ad Library (UE/EOG, Wielka Brytania, Szwajcaria), LinkedIn Ad Library (cały świat, ostatnie 12 miesięcy), Microsoft (Bing) Ad Library (UE/EOG) i Snapchat Ads Gallery (UE). Dla Pinteresta, X, Apple i reklam politycznych Snapa pokazuje bezpośredni link do biblioteki.</p></details>
       <details><summary><h3>Czy Superpixel wymaga konta?</h3></summary>
-        <p>Nie. Konta Superpixel nie ma. Wyszukiwanie w Google Ads Transparency Center wymaga konta Google zalogowanego w tym samym profilu Chrome, a logowanie do Facebooka jest opcjonalne. Pozostałe biblioteki działają bez żadnego konta.</p></details>
+        <p>Nie. Własnego konta Superpixel nie ma. Wyszukiwanie w Google Ads Transparency Center wymaga konta Google zalogowanego w tym samym profilu Chrome, a logowanie do Facebooka jest opcjonalne. Pozostałe biblioteki działają bez żadnego konta.</p></details>
       <details><summary><h3>Dokąd trafiają moje dane?</h3></summary>
-        <p>Zapytania skanu idą prosto z Twojej przeglądarki do publicznych bibliotek reklam, a wyniki zostają w lokalnej pamięci rozszerzenia. Zapytanie do searchapi.io wychodzi tylko wtedy, gdy dodasz własny klucz jako rozwiązanie zapasowe. Log diagnostyczny (ostrzeżenia i skanowana domena) trafia na superpixel.run tylko za Twoją zgodą. Szczegóły są w <a href="/pl/privacy/">polityce prywatności</a>.</p></details>
+        <p>Zapytania skanu idą prosto z Twojej przeglądarki do publicznych bibliotek reklam, a wyniki zostają w lokalnej pamięci rozszerzenia. Do searchapi.io zapytanie trafia tylko wtedy, gdy dodasz własny klucz jako zapasowe źródło. Log diagnostyczny (ostrzeżenia i skanowana domena) trafia na superpixel.run tylko za Twoją zgodą. Szczegóły są w <a href="/pl/privacy/">polityce prywatności</a>.</p></details>
       <details><summary><h3>Dlaczego Superpixel potrzebuje dostępu do wszystkich stron?</h3></summary>
-        <p>Bo możesz przeskanować dowolną stronę. Żeby odczytać tagi na wybranej stronie, rozszerzenie musi mieć do niej dostęp, a nie wie z góry, jaką domenę wpiszesz. Stronę czyta tylko wtedy, gdy uruchomisz skan, a jego skrypty treści działają wyłącznie na stronach bibliotek reklam Meta i TikTok.</p></details>
+        <p>Bo możesz przeskanować dowolną stronę. Żeby odczytać tagi na wybranej stronie, rozszerzenie musi mieć do niej dostęp, a nie wie z góry, jaką domenę wpiszesz. Stronę czyta tylko wtedy, gdy uruchomisz skan, a skrypty, które rozszerzenie wstrzykuje na strony, działają wyłącznie w bibliotekach reklam Meta i TikTok.</p></details>
       <details><summary><h3>Czy Superpixel ma otwarty kod?</h3></summary>
         <p>Tak. Kod jest na <a href="https://github.com/PiotrZapolski/superpixel">GitHubie</a> na licencji MIT. To rozszerzenie Manifest V3 w czystym JavaScripcie, bez etapu budowania, więc czytasz dokładnie ten kod, który działa w przeglądarce.</p></details>
       <details><summary><h3>W jakich przeglądarkach działa Superpixel?</h3></summary>
