@@ -263,6 +263,12 @@ h1 .dot {
   .beam { display: none; }
 }
 
+/* Product screenshot under the hero */
+.shot { padding: 40px 0 0; }
+.shot figure { margin: 0 auto; max-width: 1000px; }
+.shot img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--r-lg); }
+.shot figcaption { margin-top: 10px; text-align: center; font-size: .88rem; color: var(--ink-soft); }
+
 /* Sections */
 .section { padding: 56px 0; }
 @media (min-width: 980px) { .section { padding: 88px 0; } }

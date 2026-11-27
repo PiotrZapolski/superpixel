@@ -227,6 +227,9 @@ SITE_FILES = {
     "/video/": "video/index.html",
     "/robots.txt": "robots.txt",
     "/sitemap.xml": "sitemap.xml",
+    "/llms.txt": "llms.txt",
+    # IndexNow ownership key (public by design), see indexnow.py.
+    "/16910976d82a85d6e7a36ddeef16e2eb.txt": "16910976d82a85d6e7a36ddeef16e2eb.txt",
 }
 # Page paths without the trailing slash redirect to the canonical one.
 # The video page exists only in English: the Polish paths lead to it instead of a 404.

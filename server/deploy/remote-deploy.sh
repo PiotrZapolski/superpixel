@@ -24,7 +24,21 @@ main() {
         docker inspect -f '{{if .State.Running}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{else}}stopped{{end}}' "$container" 2>/dev/null || echo missing
     }
 
+    # Tell search engines (IndexNow) about the sitemap URLs, once per version of server/site.
+    # Also called from the early exits: the run that first ships this function still executes the
+    # previous script, so the next timer tick catches up. One attempt, never fails the deploy.
+    notify_indexnow() {
+        local marker="$repo/.git/indexnow-site" site
+        site=$(git -C "$repo" rev-parse HEAD:server/site) || return 0
+        if [ "$(cat "$marker" 2>/dev/null)" = "$site" ]; then
+            return 0
+        fi
+        echo "$site" > "$marker" || return 0
+        timeout 60 docker exec "$container" python indexnow.py || echo "WARN: IndexNow submit failed" >&2
+    }
+
     if [ "$old" = "$new" ] && [ "$(container_status)" = "healthy" ]; then
+        notify_indexnow
         exit 0
     fi
 
@@ -32,6 +46,7 @@ main() {
 
     if [ "$old" != "$new" ] && git diff --quiet "$old" "$new" -- server/ && [ "$(container_status)" = "healthy" ]; then
         echo "no server changes"
+        notify_indexnow
         exit 0
     fi
 
@@ -59,6 +74,7 @@ main() {
         exit 1
     fi
     echo "deployed $(git rev-parse --short HEAD)"
+    notify_indexnow
 }
 
 main

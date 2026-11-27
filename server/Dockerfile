@@ -9,7 +9,7 @@ RUN adduser -D -H -u 10001 app \
     && chown app:app /data
 
 WORKDIR /app
-COPY app.py triage.py /app/
+COPY app.py triage.py indexnow.py /app/
 COPY site /app/site
 
 USER app
